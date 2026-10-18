@@ -42,7 +42,8 @@ noch keine DNS-Einträge gesetzt). Komplett kostenlos betrieben.
 ```
 src/main/java/dev/microhub/
 ├── MicrohubApplication.java
-├── common/      NotFoundException (→ 404)
+├── common/      NotFoundException (→ 404), ConflictException (→ 409),
+│                BadRequestException (→ 400)
 ├── config/      SecurityConfig
 ├── user/        AppUser, Role, AppUserRepository, AppUserDetailsService,
 │                AdminInitializer, AuthController
@@ -50,7 +51,9 @@ src/main/java/dev/microhub/
 │                NewsRequest, NewsResponse, NewsListItem, NewsPage
 ├── events/      CalendarEvent, EventRepository, EventService, EventController,
 │                EventRequest, EventResponse, EventListItem, EventPage
-├── waste/       (geplant) Müllabfuhr
+├── waste/       WasteCollection, WasteType, WasteRepository, WasteService,
+│                WasteController, WasteImportService, IcsParser, IcsEvent,
+│                WasteRequest, WasteItem, WastePage, WasteTypeOption, WasteImportResult
 ├── contacts/    (geplant)
 ├── board/       (geplant) Schwarzes Brett
 └── push/        (geplant) Web Push, Abos, Scheduler
@@ -121,7 +124,7 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
 - [x] News-Modul (API) + Frontend (Startseite, Login, News lesen/schreiben/bearbeiten/löschen)
       – committet in `92c48e5`, `mvnw compile` läuft fehlerfrei
 - [x] Termine-Modul (API) + Frontend (Liste, kommend/vergangen, Detail, Formular)
-- [ ] Müllabfuhr (inkl. späterer Erinnerung per Push)
+- [x] Müllabfuhr (API, ICS-Import, Frontend) – Erinnerung per Push kommt später
 - [ ] Kontakte
 - [ ] Schwarzes Brett
 - [ ] Benutzerverwaltung / Registrierung über Freischaltcodes
@@ -143,9 +146,10 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
    → Braucht später die Spalte `public BOOLEAN NOT NULL DEFAULT FALSE` in `contact`
    (Migration `V3`) und eine feinere Regel: GET `/api/contacts` wird öffentlich, liefert
    Gästen aber nur die öffentlichen Einträge.
-3. **Müllabfuhr: ICS-Import, wenn möglich** (18.10.2026): Vor dem Müll-Modul prüfen, ob der
-   zuständige Entsorger eine ICS-Datei anbietet. Wenn ja, importiert der Admin sie; wenn
-   nein, pflegt er die Termine von Hand. Das Feld `area` bleibt vorerst leer (eine Tour).
+3. **Müllabfuhr: ICS-Import** (18.10.2026, umgesetzt): Der Landkreis Vorpommern-Rügen bietet
+   einen ICS-Export an. Der Admin lädt die Datei hoch, einzelne Termine kann er zusätzlich von
+   Hand pflegen. Das Feld `area` bleibt vorerst leer (eine Tour).
+   → Einzelheiten unter „Festlegungen Müllabfuhr-Modul“.
 
 ## Festlegungen Termine-Modul
 
@@ -155,6 +159,29 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
   Europe/Berlin**, damit ein Termin von heute Vormittag nicht schon mittags verschwindet.
 - Ganztägige Termine (`all_day = true`) werden als Mitternacht Europe/Berlin gespeichert;
   das Frontend zeigt dann nur das Datum, keine Uhrzeit.
+
+## Festlegungen Müllabfuhr-Modul
+
+- Der Entsorger ist der **Landkreis Vorpommern-Rügen**. Unter
+  https://www.lk-vr.de/Abfallkalender gibt es nach Auswahl von Ort und Abfallarten einen
+  Export als **ICS**, PDF oder CSV. Der Admin lädt die ICS-Datei unter `#/muell/import` hoch.
+- Ein automatischer Abruf der dahinterliegenden Schnittstelle (`api.abfall.io`) ist bewusst
+  **nicht** umgesetzt: direkte Aufrufe werden mit 403 abgewiesen, die Schnittstelle ist nicht
+  dokumentiert und könnte jederzeit brechen.
+- Der ICS-Parser (`IcsParser`) ist absichtlich klein gehalten statt eine Kalender-Bibliothek
+  einzubinden: Abfuhrtermine sind immer ganztägig, gebraucht werden nur `DTSTART` und `SUMMARY`.
+- Beschriftungen werden über Stichwörter auf die Abfallarten abgebildet
+  (`bio`, `papier`/`pappe`, `gelb`/`verpackung`/`wertstoff`, `sperrmüll`,
+  `restabfall`/`restmüll`/`hausmüll`). Alles andere landet unter `SONSTIGES` und behält
+  seinen Originaltext als Hinweis – so wurde aus `Tannenbaum` ein sichtbarer Termin.
+- **Stolperstelle:** `UNIQUE (waste_type, collection_date, area)` greift nicht, solange `area`
+  leer ist – in PostgreSQL gilt `NULL` nie als gleich. Die Dublettenprüfung macht deshalb der
+  `WasteService` bzw. `WasteImportService` selbst.
+- In den Dateien des Landkreises fällt `Restabfallbehälter monatlich` immer auf einen Tag, an
+  dem schon `Restabfallbehälter` steht. Das ist dieselbe Abfuhr (nur für Haushalte mit
+  Monatsleerung) und wird von der Dublettenprüfung korrekt übersprungen.
+- Der Import ist wiederholbar: aus derselben Datei entstehen beim zweiten Hochladen keine
+  neuen Termine.
 
 ## Bekannte Stolperstellen
 
