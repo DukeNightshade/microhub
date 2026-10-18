@@ -73,6 +73,7 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   `waste_collection` (mit `reminder_sent`), `contact`, `board_post` (mit `expires_at`),
   `push_subscription` (mit `notify_news/events/waste/board`).
 - **Ausgeführte Migrationen nie ändern.** Änderungen nur als neue Datei `V2__…sql` usw.
+  Bisher ist nur `V1` ausgeführt, die Nummern danach sind also noch frei.
 - `open-in-view: false` → Lazy-Relationen nur innerhalb von `@Transactional` auflösen
   (oder `@EntityGraph` nutzen, siehe `NewsRepository`).
 - Text-Spalten (`TEXT`) in Entities mit `@Column(columnDefinition = "text")` mappen.
@@ -95,9 +96,16 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
 
 ## Frontend
 
-- Single-Page-App mit Hash-Router in `static/js/app.js` (`#/news`, `#/news/:id`,
-  `#/news/neu`, `#/news/:id/bearbeiten`, `#/login`, `#/termine`, `#/muell`,
-  `#/kontakte`, `#/brett`).
+- Single-Page-App mit Hash-Router in `static/js/app.js`. Routen:
+  - `#/login`
+  - News: `#/news`, `#/news/neu`, `#/news/:id`, `#/news/:id/bearbeiten`
+  - Termine: `#/termine`, `#/termine/vergangen`, `#/termine/neu`, `#/termine/:id`,
+    `#/termine/:id/bearbeiten`
+  - Müll: `#/muell`, `#/muell/vergangen`, `#/muell/neu`, `#/muell/import`,
+    `#/muell/:id/bearbeiten` (keine Detailseite – die Zeile führt Admins direkt ins Formular)
+  - noch Platzhalter: `#/kontakte`, `#/brett`
+- `static/js/api.js` kennt vier Arten von Anfragen: GET, `body` (JSON), `form`
+  (form-urlencoded, für den Login) und `upload` (FormData, für den ICS-Import).
 - Alle Daten aus der API **immer escapen** (`escapeHtml`). Kein HTML aus der Datenbank
   rendern; Fließtext wird über Leerzeilen in Absätze geteilt.
 - Gestaltung: Bereichsfarben nach Tonnenfarben (`--c-news` blau, `--c-events` grün,
@@ -133,18 +141,62 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
 - [ ] Tests + GitHub Actions CI
 - [ ] Deployment auf Oracle Cloud + DNS + HTTPS
 
+## Handover – Stand 19.10.2026
+
+**Zuletzt gemacht:** News, Termine und Müllabfuhr sind fertig (API + Frontend).
+`.\mvnw compile` läuft fehlerfrei. Letzte Commits:
+
+| Commit | Inhalt |
+|---|---|
+| `f1b8cef` | Müllabfuhr in dieser Übergabe dokumentiert |
+| `1205b7c` | Müllabfuhr-Modul mit ICS-Import |
+| `72fe6f2` | Bezeichner im Termine-Modul auf Englisch vereinheitlicht |
+| `d50114e` | Termine-Modul im Stand vermerkt |
+| `af321da` | Termine im Frontend |
+| `6b38798` | Termine-API |
+| `deb15c9` | Diese Datei aufgenommen, Entscheidungen festgehalten |
+
+**Wichtig:** Diese 7 Commits liegen nur lokal – `origin/master` steht noch auf `92c48e5`.
+Vor dem Weiterarbeiten `git push` überlegen.
+
+**Zustand der lokalen Umgebung:**
+- Datenbank enthält die **185 echten Abfuhrtermine** aus den ICS-Dateien des Landkreises
+  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen.
+- Genau **ein Benutzer**: `admin` (ROLE_ADMIN).
+- News und Termine sind leer.
+- Der Container `microhub-postgres-1` läuft oder lässt sich mit dem App-Start neu hochziehen.
+
+**Nächster Schritt: Kontakte-Modul.** Die Entscheidung dazu steht schon (siehe „Getroffene
+Entscheidungen“, Punkt 2). Konkret:
+
+1. Migration `V2__contact_public.sql` anlegen (die Nummerierung ist frei, `V1` ist die einzige
+   bisher ausgeführte Migration): `ALTER TABLE contact ADD COLUMN public BOOLEAN NOT NULL
+   DEFAULT FALSE;`
+2. Paket `dev.microhub.contacts` nach dem Muster von `waste/`: Entity, Repository, Service,
+   Controller, Records. Sortierung nach `sort_order`, dann `name`.
+3. `SecurityConfig`: GET `/api/contacts/**` von `authenticated()` auf `permitAll()` ändern.
+   Die Trennung macht dann der Service: Gäste bekommen nur Einträge mit `public = true`,
+   Eingeloggte alle. Prüfen über `Authentication` im Controller oder
+   `SecurityContextHolder` im Service.
+4. Frontend: `#/kontakte` (Liste nach Kategorie gruppiert, Telefonnummern als `tel:`-Links),
+   dazu `#/kontakte/neu` und `#/kontakte/:id/bearbeiten` für Admins. `SECTIONS.kontakte` in
+   `app.js` hat aktuell noch `loginRequired: true` – das muss weg, sonst sehen Gäste die
+   Seite nicht.
+
+Danach: Schwarzes Brett, dann Benutzerverwaltung mit Freischaltcodes.
+
 ## Getroffene Entscheidungen
 
 1. **Registrierung über Freischaltcodes** (18.10.2026): Es gibt eine Selbstregistrierung,
    aber nur mit gültigem Code. Ein Code ist **maximal 2× einlösbar** – zwei Personen pro
    Wohnung. Der Admin erzeugt und verteilt die Codes.
-   → Braucht später die Migration `V2__invite_code.sql` (Tabelle `invite_code` mit
+   → Braucht später eine Migration `V…__invite_code.sql` (Tabelle `invite_code` mit
    `code`, `label` für die Wohnung, `max_uses` Standard 2, `used_count`, `expires_at`,
    `created_at`), eine Registrierungsseite und eine Admin-Ansicht für die Codes.
 2. **Kontakte nach Kategorie trennen** (18.10.2026): Öffentliche Kontakte (z. B.
    Notfallnummern) sind auch für Gäste sichtbar, alle übrigen nur für Eingeloggte.
    → Braucht später die Spalte `public BOOLEAN NOT NULL DEFAULT FALSE` in `contact`
-   (Migration `V3`) und eine feinere Regel: GET `/api/contacts` wird öffentlich, liefert
+   (eigene Migration) und eine feinere Regel: GET `/api/contacts` wird öffentlich, liefert
    Gästen aber nur die öffentlichen Einträge.
 3. **Müllabfuhr: ICS-Import** (18.10.2026, umgesetzt): Der Landkreis Vorpommern-Rügen bietet
    einen ICS-Export an. Der Admin lädt die Datei hoch, einzelne Termine kann er zusätzlich von
@@ -182,6 +234,10 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
   Monatsleerung) und wird von der Dublettenprüfung korrekt übersprungen.
 - Der Import ist wiederholbar: aus derselben Datei entstehen beim zweiten Hochladen keine
   neuen Termine.
+- Für den Upload steht in `application.yaml` `spring.servlet.multipart.max-file-size: 1MB`
+  (die Jahresdateien des Landkreises sind knapp 40 KB groß).
+- Mit den echten Dateien geprüft: 2026 → 106 Einträge, 94 angelegt, 12 übersprungen,
+  `Tannenbaum` unter „Sonstiges“. 2027 → 103 Einträge, 91 angelegt, 12 übersprungen.
 
 ## Bekannte Stolperstellen
 
