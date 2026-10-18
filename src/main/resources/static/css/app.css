@@ -381,3 +381,82 @@ input[type="checkbox"] { width: auto; padding: 0; accent-color: var(--sec, var(-
 
   main { margin: 0; padding: 2.25rem 2.5rem 4rem; }
 }
+
+/* ---------- Müllabfuhr ---------- */
+
+/* Mehrere Schaltflächen in der Seitenüberschrift */
+.head-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+
+.waste-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.waste-row {
+  display: grid;
+  grid-template-columns: 3.25rem 1fr;
+  gap: 1rem;
+  align-items: center;
+  padding: .9rem 0;
+  border-bottom: 1px solid var(--line);
+  text-decoration: none;
+}
+
+.waste-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+}
+.waste-date .day { font-size: 1.6rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.waste-date .month { font-size: .8rem; color: var(--muted); }
+
+.waste-kind {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+a.waste-row:hover .waste-kind { text-decoration: underline; text-underline-offset: 3px; }
+
+.waste-note { margin: .15rem 0 0; color: var(--muted); font-size: .95rem; }
+
+/* Die Farben der Tonnen, damit man die Abfuhr auf einen Blick erkennt */
+.waste-dot {
+  flex: none;
+  width: .95rem;
+  height: .95rem;
+  border-radius: 50%;
+  border: 1px solid rgba(128, 128, 128, .45);
+}
+.wt-RESTMUELL   { background: #3C4043; }
+.wt-BIO         { background: #7A4F28; }
+.wt-PAPIER      { background: #1F5FA8; }
+.wt-GELBER_SACK { background: #E8C33A; }
+.wt-SPERRMUELL  { background: #8A8F94; }
+.wt-SONSTIGES   { background: #8A8F94; }
+
+/* ICS-Import */
+.import-intro { max-width: 60ch; }
+input[type="file"] { padding: .55rem .6rem; }
+select {
+  width: 100%;
+  padding: .7rem .8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+/* Im Dunkelmodus braucht das Grau der Restmülltonne mehr Helligkeit, sonst verschwindet es */
+@media (prefers-color-scheme: dark) {
+  .wt-RESTMUELL   { background: #868C92; }
+  .wt-BIO         { background: #A5713C; }
+  .wt-SPERRMUELL  { background: #C3C8CC; }
+  .wt-SONSTIGES   { background: #C3C8CC; }
+}

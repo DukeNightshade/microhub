@@ -8,6 +8,10 @@ spring:
   mvc:
     problemdetails:
       enabled: true          # Fehler als JSON mit Beschreibung zurückgeben
+  servlet:
+    multipart:               # nur für den ICS-Import der Müllabfuhr
+      max-file-size: 1MB
+      max-request-size: 2MB
   # Lokal: Datenbank wird über compose.yaml automatisch gestartet und verbunden.
   # Produktion: SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD als Umgebungsvariablen.
 

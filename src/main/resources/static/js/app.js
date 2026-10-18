@@ -462,6 +462,223 @@ async function viewEventEditor(id) {
   });
 }
 
+// ---------- Müllabfuhr ----------
+
+const weekdayAndDate = new Intl.DateTimeFormat('de-DE', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+});
+
+/** Die Abfallarten kommen aus der API, damit Beschriftung und Reihenfolge nur einmal gepflegt werden. */
+let wasteTypes = null;
+
+async function loadWasteTypes() {
+  if (!wasteTypes) wasteTypes = await api('/api/waste/types');
+  return wasteTypes;
+}
+
+function wasteRowHtml(item, admin) {
+  const date = new Date(`${item.collectionDate}T00:00`);
+  const inner = `
+    <time class="waste-date" datetime="${escapeHtml(item.collectionDate)}">
+      <span class="day">${dayOnly.format(date)}</span>
+      <span class="month">${monthShort.format(date)}</span>
+    </time>
+    <div>
+      <p class="waste-kind">
+        <span class="waste-dot wt-${escapeHtml(item.wasteType)}" aria-hidden="true"></span>
+        ${escapeHtml(item.label)}
+      </p>
+      <p class="waste-note">${escapeHtml(weekdayAndDate.format(date))}${item.note ? ` · ${escapeHtml(item.note)}` : ''}</p>
+    </div>`;
+
+  // Admins kommen über die Zeile direkt ins Formular, Gäste lesen nur.
+  return admin
+    ? `<li><a class="waste-row" href="#/muell/${item.id}/bearbeiten">${inner}</a></li>`
+    : `<li><div class="waste-row">${inner}</div></li>`;
+}
+
+async function viewWasteList(past) {
+  const admin = isAdmin();
+  const action = admin
+    ? '<div class="head-actions"><a class="btn secondary" href="#/muell/import">Termine importieren</a><a class="btn" href="#/muell/neu">Abfuhr eintragen</a></div>'
+    : '';
+  const title = past ? 'Vergangene Abfuhren' : 'Müllabfuhr';
+  const moreLabel = past ? 'Noch ältere Abfuhren laden' : 'Spätere Abfuhren laden';
+  const moreButton = `<button class="btn secondary" type="button">${moreLabel}</button>`;
+  const toggle = past
+    ? '<p class="list-switch"><a href="#/muell">Zu den kommenden Abfuhren</a></p>'
+    : '<p class="list-switch"><a href="#/muell/vergangen">Vergangene Abfuhren ansehen</a></p>';
+  const query = past ? '&vergangen=true' : '';
+
+  let page = 0;
+  const data = await api(`/api/waste?page=0${query}`);
+
+  if (data.items.length === 0) {
+    const emptyText = past
+      ? 'Es gibt noch keine vergangenen Abfuhren.'
+      : `Es sind noch keine Abfuhrtermine eingetragen.${admin ? ' Trag den ersten über „Abfuhr eintragen“ ein.' : ''}`;
+    render(`${pageHead('muell', title, action)}${toggle}<p class="muted">${emptyText}</p>`, 'muell');
+    return;
+  }
+
+  render(`
+    ${pageHead('muell', title, action)}
+    ${toggle}
+    <ol class="waste-list" id="waste-list">${data.items.map((i) => wasteRowHtml(i, admin)).join('')}</ol>
+    <div class="more" id="more">${data.hasMore ? moreButton : ''}</div>`, 'muell');
+
+  const more = document.getElementById('more');
+  more.addEventListener('click', async (clickEvent) => {
+    if (clickEvent.target.tagName !== 'BUTTON') return;
+    clickEvent.target.disabled = true;
+    page += 1;
+    const next = await api(`/api/waste?page=${page}${query}`);
+    document.getElementById('waste-list')
+      .insertAdjacentHTML('beforeend', next.items.map((i) => wasteRowHtml(i, admin)).join(''));
+    more.innerHTML = next.hasMore ? moreButton : '';
+  });
+}
+
+async function viewWasteEditor(id) {
+  if (!isAdmin()) {
+    render(`${pageHead('muell', 'Abfuhr eintragen')}<p class="notice">Nur Admins können Abfuhrtermine pflegen.</p>`, 'muell');
+    return;
+  }
+
+  const [types, collection] = await Promise.all([
+    loadWasteTypes(),
+    id ? api(`/api/waste/${encodeURIComponent(id)}`) : Promise.resolve({ wasteType: 'RESTMUELL', collectionDate: '', note: '' }),
+  ]);
+
+  const options = types.map((type) => `
+    <option value="${escapeHtml(type.value)}" ${type.value === collection.wasteType ? 'selected' : ''}>
+      ${escapeHtml(type.label)}
+    </option>`).join('');
+
+  render(`
+    <a class="back" href="#/muell">Abbrechen</a>
+    ${pageHead('muell', id ? 'Abfuhr bearbeiten' : 'Abfuhr eintragen')}
+    <div id="editor-error"></div>
+    <form class="form" id="waste-form">
+      <div class="field">
+        <label for="wasteType">Abfallart</label>
+        <select id="wasteType" name="wasteType" required>${options}</select>
+      </div>
+      <div class="field">
+        <label for="collectionDate">Tag der Abfuhr</label>
+        <input id="collectionDate" name="collectionDate" type="date" required value="${escapeHtml(collection.collectionDate)}">
+      </div>
+      <div class="field">
+        <label for="note">Hinweis</label>
+        <span class="hint">Optional, zum Beispiel „bitte bis 6 Uhr rausstellen“.</span>
+        <input id="note" name="note" maxlength="300" value="${escapeHtml(collection.note)}">
+      </div>
+      <div class="admin-actions">
+        <button class="btn" type="submit">${id ? 'Änderungen speichern' : 'Abfuhr eintragen'}</button>
+        ${id ? '<button class="btn danger" type="button" id="delete">Löschen</button>' : ''}
+      </div>
+    </form>`, 'muell');
+
+  const form = document.getElementById('waste-form');
+  const errorBox = document.getElementById('editor-error');
+
+  document.getElementById('delete')?.addEventListener('click', async () => {
+    if (!confirm(`„${collection.label}“ am ${collection.collectionDate} wirklich löschen?`)) return;
+    await api(`/api/waste/${collection.id}`, { method: 'DELETE' });
+    location.hash = '#/muell';
+  });
+
+  form.addEventListener('submit', async (submitEvent) => {
+    submitEvent.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    const body = {
+      wasteType: form.wasteType.value,
+      collectionDate: form.collectionDate.value,
+      note: form.note.value,
+    };
+
+    try {
+      if (id) await api(`/api/waste/${collection.id}`, { method: 'PUT', body });
+      else await api('/api/waste', { method: 'POST', body });
+      location.hash = '#/muell';
+    } catch (error) {
+      errorBox.innerHTML = error.status === 409
+        ? `<p class="notice error">${escapeHtml(error.message)}</p>`
+        : error.status === 400
+          ? '<p class="notice error">Abfallart und Tag der Abfuhr müssen ausgefüllt sein.</p>'
+          : '<p class="notice error">Speichern hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
+      button.disabled = false;
+    }
+  });
+}
+
+async function viewWasteImport() {
+  if (!isAdmin()) {
+    render(`${pageHead('muell', 'Termine importieren')}<p class="notice">Nur Admins können Abfuhrtermine importieren.</p>`, 'muell');
+    return;
+  }
+
+  render(`
+    <a class="back" href="#/muell">Zurück zur Müllabfuhr</a>
+    ${pageHead('muell', 'Termine importieren')}
+    <p class="muted import-intro">
+      Beim Landkreis Vorpommern-Rügen findest du unter „Abfallkalender“ einen Export deiner
+      Abfuhrtermine. Wähle dort deinen Ort, kreuze alle Abfallarten an, wähle das Format
+      <strong>ICS</strong> und lade die Datei herunter. Diese Datei kannst du hier hochladen.
+      Termine, die schon eingetragen sind, werden dabei übersprungen – du kannst dieselbe
+      Datei also gefahrlos ein zweites Mal hochladen.
+    </p>
+    <div id="import-result"></div>
+    <form class="form" id="import-form">
+      <div class="field">
+        <label for="file">ICS-Datei</label>
+        <input id="file" name="file" type="file" accept=".ics,text/calendar" required>
+      </div>
+      <div><button class="btn" type="submit">Datei einlesen</button></div>
+    </form>`, 'muell');
+
+  const form = document.getElementById('import-form');
+  const result = document.getElementById('import-result');
+
+  form.addEventListener('submit', async (submitEvent) => {
+    submitEvent.preventDefault();
+    const button = form.querySelector('button');
+    const file = form.file.files[0];
+    if (!file) return;
+
+    button.disabled = true;
+    result.innerHTML = '<p class="muted">Die Datei wird eingelesen …</p>';
+
+    const upload = new FormData();
+    upload.append('file', file);
+
+    try {
+      const report = await api('/api/waste/import', { method: 'POST', upload });
+      const unknown = report.unknownTypes.length
+        ? `<p class="muted">Ohne passende Abfallart, deshalb unter „Sonstiges“ geführt:
+             ${escapeHtml(report.unknownTypes.join(', '))}.</p>`
+        : '';
+      result.innerHTML = `
+        <div class="notice">
+          <p><strong>${report.imported} ${report.imported === 1 ? 'Termin' : 'Termine'} eingetragen.</strong></p>
+          <p class="muted">
+            ${report.found} ${report.found === 1 ? 'Eintrag' : 'Einträge'} in der Datei,
+            ${report.skipped} davon übersprungen, weil es sie schon gab.
+          </p>
+          ${unknown}
+          <p><a href="#/muell">Zur Übersicht</a></p>
+        </div>`;
+      form.reset();
+    } catch (error) {
+      result.innerHTML = error.status === 413 || error.status === 400
+        ? '<p class="notice error">Mit dieser Datei kann MicroHub nichts anfangen. Erwartet wird eine ICS-Datei bis 1 MB.</p>'
+        : '<p class="notice error">Der Import hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
+    }
+    button.disabled = false;
+  });
+}
+
 // ---------- Bereiche, die noch gebaut werden ----------
 
 function viewPlaceholder(section) {
@@ -508,6 +725,11 @@ async function route() {
     else if (section === 'termine' && first === 'neu') await viewEventEditor();
     else if (section === 'termine' && second === 'bearbeiten') await viewEventEditor(first);
     else if (section === 'termine') await viewEventDetail(first);
+    else if (section === 'muell' && !first) await viewWasteList(false);
+    else if (section === 'muell' && first === 'vergangen') await viewWasteList(true);
+    else if (section === 'muell' && first === 'neu') await viewWasteEditor();
+    else if (section === 'muell' && first === 'import') await viewWasteImport();
+    else if (section === 'muell' && second === 'bearbeiten') await viewWasteEditor(first);
     else if (SECTIONS[section]) viewPlaceholder(section);
     else location.hash = '#/news';
   } catch (error) {

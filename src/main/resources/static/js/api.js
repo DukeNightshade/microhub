@@ -16,8 +16,9 @@ function csrfToken() {
  * api('/api/news')                                  → GET, liefert JSON
  * api('/api/news', { method: 'POST', body: {...} }) → JSON senden
  * api('/api/auth/login', { method: 'POST', form: {...} }) → Formular senden
+ * api('/api/waste/import', { method: 'POST', upload: formData }) → Datei senden
  */
-export async function api(path, { method = 'GET', body, form } = {}) {
+export async function api(path, { method = 'GET', body, form, upload } = {}) {
   const headers = { Accept: 'application/json' };
 
   if (method !== 'GET') {
@@ -26,7 +27,10 @@ export async function api(path, { method = 'GET', body, form } = {}) {
   }
 
   let payload;
-  if (form) {
+  if (upload) {
+    // Content-Type setzt der Browser selbst – er braucht die Grenzmarkierung darin.
+    payload = upload;
+  } else if (form) {
     payload = new URLSearchParams(form);
   } else if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
