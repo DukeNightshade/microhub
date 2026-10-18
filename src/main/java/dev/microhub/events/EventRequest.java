@@ -17,7 +17,7 @@ public record EventRequest(
 
     /** Fängt „Ende vor Beginn“ schon hier ab – sonst käme ein Datenbankfehler statt einer 400. */
     @AssertTrue(message = "Das Ende darf nicht vor dem Beginn liegen.")
-    public boolean isEndeNichtVorBeginn() {
+    public boolean isEndNotBeforeStart() {
         return startsAt == null || endsAt == null || !endsAt.isBefore(startsAt);
     }
 }

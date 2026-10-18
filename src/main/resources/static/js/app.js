@@ -272,7 +272,7 @@ function eventWhenShort(event) {
 
 function eventItemHtml(item) {
   const date = new Date(item.startsAt);
-  const ort = item.location ? `<span class="sep">·</span>${escapeHtml(item.location)}` : '';
+  const locationHtml = item.location ? `<span class="sep">·</span>${escapeHtml(item.location)}` : '';
   return `
     <li>
       <a class="event-item" href="#/termine/${item.id}">
@@ -282,7 +282,7 @@ function eventItemHtml(item) {
         </time>
         <div>
           <h2>${escapeHtml(item.title)}</h2>
-          <p class="event-when">${escapeHtml(eventWhenShort(item))}${ort}</p>
+          <p class="event-when">${escapeHtml(eventWhenShort(item))}${locationHtml}</p>
         </div>
       </a>
     </li>`;
@@ -302,10 +302,10 @@ async function viewEventList(past) {
   const data = await api(`/api/events?page=0${query}`);
 
   if (data.items.length === 0) {
-    const leer = past
+    const emptyText = past
       ? 'Es gibt noch keine vergangenen Termine.'
       : `Zurzeit steht nichts an.${isAdmin() ? ' Trag den ersten Termin über „Termin eintragen“ ein.' : ''}`;
-    render(`${pageHead('termine', title, action)}${toggle}<p class="muted">${leer}</p>`, 'termine');
+    render(`${pageHead('termine', title, action)}${toggle}<p class="muted">${emptyText}</p>`, 'termine');
     return;
   }
 
@@ -356,8 +356,8 @@ function toInputValue(iso, allDay) {
   if (!iso) return '';
   const d = new Date(iso);
   const pad = (n) => String(n).padStart(2, '0');
-  const datum = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  return allDay ? datum : `${datum}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const dateOnly = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return allDay ? dateOnly : `${dateOnly}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 /** Formulareingabe (Ortszeit) → ISO-Zeitstempel für die API. Leer bleibt leer. */
@@ -416,16 +416,16 @@ async function viewEventEditor(id) {
     </form>`, 'termine');
 
   const form = document.getElementById('event-form');
-  const fehler = document.getElementById('editor-error');
+  const errorBox = document.getElementById('editor-error');
 
   // Das Häkchen schaltet Beginn und Ende zwischen Datum und Datum+Uhrzeit um.
   form.allDay.addEventListener('change', () => {
-    const ganztags = form.allDay.checked;
-    [form.startsAt, form.endsAt].forEach((feld) => {
-      const datum = feld.value.slice(0, 10);
-      feld.type = ganztags ? 'date' : 'datetime-local';
+    const isFullDay = form.allDay.checked;
+    [form.startsAt, form.endsAt].forEach((field) => {
+      const dateOnly = field.value.slice(0, 10);
+      field.type = isFullDay ? 'date' : 'datetime-local';
       // Ohne Uhrzeit verwirft der Browser den Wert eines datetime-local-Feldes.
-      feld.value = datum ? (ganztags ? datum : `${datum}T09:00`) : '';
+      field.value = dateOnly ? (isFullDay ? dateOnly : `${dateOnly}T09:00`) : '';
     });
   });
 
@@ -443,7 +443,7 @@ async function viewEventEditor(id) {
     };
 
     if (body.endsAt && body.startsAt && body.endsAt < body.startsAt) {
-      fehler.innerHTML = '<p class="notice error">Das Ende darf nicht vor dem Beginn liegen.</p>';
+      errorBox.innerHTML = '<p class="notice error">Das Ende darf nicht vor dem Beginn liegen.</p>';
       return;
     }
 
@@ -454,7 +454,7 @@ async function viewEventEditor(id) {
         : await api('/api/events', { method: 'POST', body });
       location.hash = `#/termine/${saved.id}`;
     } catch (error) {
-      fehler.innerHTML = error.status === 400
+      errorBox.innerHTML = error.status === 400
         ? '<p class="notice error">Titel und Beginn müssen ausgefüllt sein, und das Ende darf nicht vor dem Beginn liegen.</p>'
         : '<p class="notice error">Speichern hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
       button.disabled = false;

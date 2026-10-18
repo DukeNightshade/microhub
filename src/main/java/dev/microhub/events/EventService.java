@@ -27,12 +27,12 @@ public class EventService {
     }
 
     public EventPage list(int page, boolean past) {
-        Instant heuteFrueh = heutigerTagesbeginn();
+        Instant todayStart = startOfToday();
         PageRequest pageRequest = PageRequest.of(Math.max(page, 0), PAGE_SIZE);
 
         Slice<CalendarEvent> slice = past
-                ? eventRepository.findByStartsAtLessThanOrderByStartsAtDesc(heuteFrueh, pageRequest)
-                : eventRepository.findByStartsAtGreaterThanEqualOrderByStartsAtAsc(heuteFrueh, pageRequest);
+                ? eventRepository.findByStartsAtLessThanOrderByStartsAtDesc(todayStart, pageRequest)
+                : eventRepository.findByStartsAtGreaterThanEqualOrderByStartsAtAsc(todayStart, pageRequest);
 
         return new EventPage(
                 slice.map(EventListItem::from).getContent(),
@@ -80,7 +80,7 @@ public class EventService {
      * Grenze zwischen kommend und vergangen: der Beginn des heutigen Tages in Europe/Berlin.
      * So verschwindet ein Termin von heute Vormittag nicht schon mittags aus der Liste.
      */
-    private static Instant heutigerTagesbeginn() {
+    private static Instant startOfToday() {
         return LocalDate.now(BERLIN).atStartOfDay(BERLIN).toInstant();
     }
 
