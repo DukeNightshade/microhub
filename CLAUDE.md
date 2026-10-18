@@ -120,7 +120,7 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
 - [x] Datenmodell (V1), Security, Admin-Initialisierung – lokal getestet, Admin existiert
 - [x] News-Modul (API) + Frontend (Startseite, Login, News lesen/schreiben/bearbeiten/löschen)
       – committet in `92c48e5`, `mvnw compile` läuft fehlerfrei
-- [ ] Termine (in Arbeit)
+- [x] Termine-Modul (API) + Frontend (Liste, kommend/vergangen, Detail, Formular)
 - [ ] Müllabfuhr (inkl. späterer Erinnerung per Push)
 - [ ] Kontakte
 - [ ] Schwarzes Brett
