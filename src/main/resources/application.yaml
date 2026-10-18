@@ -1,3 +1,30 @@
 spring:
   application:
     name: microhub
+  jpa:
+    hibernate:
+      ddl-auto: validate      # Schema kommt ausschließlich aus Flyway
+    open-in-view: false
+  # Lokal: Datenbank wird über compose.yaml automatisch gestartet und verbunden.
+  # Produktion: SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD als Umgebungsvariablen.
+
+server:
+  servlet:
+    session:
+      timeout: 30d
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${COOKIE_SECURE:false}   # in Produktion auf true setzen
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+microhub:
+  admin:
+    username: ${ADMIN_USERNAME:admin}
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}         # niemals ins Repo schreiben!
