@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#F2F4F1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#11181D" media="(prefers-color-scheme: dark)">
+  <title>MicroHub</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Zum Inhalt springen</a>
+
+  <header class="topbar">
+    <a class="brand" href="#/news" aria-label="MicroHub Startseite">
+      <span class="brand-mark" aria-hidden="true">
+        <i style="--sec: var(--c-news)"></i><i style="--sec: var(--c-events)"></i><i style="--sec: var(--c-waste)"></i><i style="--sec: var(--c-contacts)"></i><i style="--sec: var(--c-board)"></i>
+      </span>
+      MicroHub
+    </a>
+    <div class="account" id="account"></div>
+  </header>
+
+  <nav class="tabs" aria-label="Bereiche">
+    <a href="#/news" data-section="news"><span class="tab-mark"></span><span>News</span></a>
+    <a href="#/termine" data-section="termine"><span class="tab-mark"></span><span>Termine</span></a>
+    <a href="#/muell" data-section="muell"><span class="tab-mark"></span><span class="short">Müll</span><span class="long">Müllabfuhr</span></a>
+    <a href="#/kontakte" data-section="kontakte"><span class="tab-mark"></span><span>Kontakte</span></a>
+    <a href="#/brett" data-section="brett"><span class="tab-mark"></span><span class="short">Brett</span><span class="long">Schwarzes Brett</span></a>
+  </nav>
+
+  <main id="main" tabindex="-1">
+    <p class="loading">Wird geladen …</p>
+  </main>
+
+  <noscript>
+    <p class="notice">MicroHub braucht JavaScript. Bitte aktiviere es in deinem Browser.</p>
+  </noscript>
+</body>
+</html>

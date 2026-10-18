@@ -1,0 +1,360 @@
+/* =========================================================
+   MicroHub – Grundgestaltung
+   Farben der Bereiche angelehnt an die Tonnenfarben:
+   Papier blau, Bio/Garten grün, Gelbe Tonne, Restmüll grau, Kork fürs Brett.
+   Schrift: Systemschrift (keine externen Fonts → schnell und datenschutzfreundlich).
+   ========================================================= */
+
+:root {
+  color-scheme: light;
+  --paper: #F2F4F1;
+  --surface: #FFFFFF;
+  --ink: #17232B;
+  --muted: #56636B;
+  --line: #D3DAD5;
+
+  --c-news: #1F5FA8;
+  --c-events: #2E7D4F;
+  --c-waste: #D9A400;
+  --c-contacts: #5B6670;
+  --c-board: #8A5A2B;
+
+  --danger: #B3261E;
+  --focus: #1F5FA8;
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --radius: 6px;
+  --nav-h: 4rem;
+  box-sizing: border-box;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --paper: #11181D;
+    --surface: #18232A;
+    --ink: #E6ECEA;
+    --muted: #9AA7AE;
+    --line: #2A363D;
+    --c-news: #6FA8E8;
+    --c-events: #6CC08F;
+    --c-waste: #F0C640;
+    --c-contacts: #A7B2B9;
+    --c-board: #D29A62;
+    --danger: #F2867F;
+    --focus: #6FA8E8;
+  }
+}
+
+*, *::before, *::after { box-sizing: inherit; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font: 1.0625rem/1.55 var(--font);
+}
+
+a { color: inherit; }
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 100;
+  padding: .5rem .75rem;
+  background: var(--ink);
+  color: var(--paper);
+}
+.skip-link:focus { top: 1rem; }
+
+/* ---------- Kopfzeile ---------- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: calc(env(safe-area-inset-top, 0px) + .75rem) 1.25rem .75rem;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: .6rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  text-decoration: none;
+}
+
+/* Die fünf Bereichsfarben nebeneinander – wie Tonnen am Straßenrand */
+.brand-mark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 1.1rem;
+}
+.brand-mark i {
+  display: block;
+  width: 5px;
+  height: 100%;
+  border-radius: 1px 1px 0 0;
+  background: var(--sec);
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  font-size: .95rem;
+}
+.account .who { color: var(--muted); }
+
+/* ---------- Bereichsnavigation (Handy: unten, Desktop: links) ---------- */
+
+.tabs [data-section="news"]     { --sec: var(--c-news); }
+.tabs [data-section="termine"]  { --sec: var(--c-events); }
+.tabs [data-section="muell"]    { --sec: var(--c-waste); }
+.tabs [data-section="kontakte"] { --sec: var(--c-contacts); }
+.tabs [data-section="brett"]    { --sec: var(--c-board); }
+
+.tabs {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.tabs a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .35rem;
+  min-height: var(--nav-h);
+  padding: .65rem .25rem .55rem;
+  color: var(--muted);
+  font-size: .78rem;
+  text-decoration: none;
+}
+
+.tab-mark {
+  width: 1.4rem;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sec);
+  opacity: .4;
+}
+
+.tabs a[aria-current="page"] { color: var(--ink); font-weight: 700; }
+.tabs a[aria-current="page"] .tab-mark { width: 2rem; height: 6px; opacity: 1; }
+
+.long { display: none; }
+
+/* ---------- Inhalt ---------- */
+
+main {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 1.75rem 1.25rem calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 2.5rem);
+}
+/* main bekommt beim Seitenwechsel den Fokus (für Screenreader), aber ohne sichtbaren Rahmen */
+main:focus, main:focus-visible { outline: none; }
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.page-head h1 {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+}
+.page-head h1::after {
+  content: "";
+  display: block;
+  width: 2.5rem;
+  height: 6px;
+  margin-top: .6rem;
+  border-radius: 2px;
+  background: var(--sec, var(--ink));
+}
+
+.loading, .muted { color: var(--muted); }
+
+/* News-Liste: Datum links, Inhalt rechts */
+.news-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.news-item {
+  display: grid;
+  grid-template-columns: 3.25rem 1fr;
+  gap: 1rem;
+  padding: 1.1rem 0;
+  border-bottom: 1px solid var(--line);
+  text-decoration: none;
+}
+
+.news-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+  padding-top: .15rem;
+}
+.news-date .day {
+  font-size: 1.6rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.news-date .month { font-size: .8rem; color: var(--muted); }
+
+.news-item h2 {
+  margin: 0 0 .25rem;
+  font-size: 1.15rem;
+  line-height: 1.3;
+}
+.news-item:hover h2 { text-decoration: underline; text-underline-offset: 3px; }
+.news-item p { margin: 0; color: var(--muted); }
+
+.more { margin-top: 1.5rem; text-align: center; }
+
+/* Detailansicht */
+.article-meta { margin: -1rem 0 1.75rem; color: var(--muted); font-size: .95rem; }
+.article-summary { font-size: 1.2rem; line-height: 1.5; margin: 0 0 1.5rem; }
+.article-body { max-width: 65ch; }
+.article-body p { margin: 0 0 1.1em; }
+.back { display: inline-block; margin-bottom: 1.25rem; color: var(--muted); }
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+/* ---------- Formulare und Buttons ---------- */
+
+.form { display: grid; gap: 1.1rem; max-width: 36rem; }
+.field { display: grid; gap: .35rem; }
+.field label { font-weight: 600; }
+.field .hint { font-size: .9rem; color: var(--muted); }
+
+input, textarea {
+  width: 100%;
+  padding: .7rem .8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+textarea { min-height: 14rem; resize: vertical; line-height: 1.5; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: .55rem 1.1rem;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--paper);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn:disabled { opacity: .6; cursor: progress; }
+.btn.secondary { background: transparent; color: var(--ink); }
+.btn.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+.btn.small { min-height: 2.25rem; padding: .3rem .8rem; font-size: .95rem; }
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.notice {
+  margin: 0 0 1.25rem;
+  padding: .85rem 1rem;
+  border-left: 4px solid var(--sec, var(--ink));
+  background: var(--surface);
+}
+.notice.error { border-left-color: var(--danger); }
+
+/* ---------- Desktop ---------- */
+
+@media (min-width: 900px) {
+  body {
+    display: grid;
+    grid-template-columns: 15rem 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .topbar { grid-column: 1 / -1; padding-inline: 2rem; }
+
+  .tabs {
+    position: sticky;
+    top: 4.5rem;
+    align-self: start;
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    padding: 1.75rem 0 0 1.25rem;
+    background: none;
+    border: 0;
+  }
+  .tabs a {
+    flex-direction: row;
+    gap: .75rem;
+    min-height: 0;
+    padding: .6rem .75rem;
+    border-radius: var(--radius);
+    font-size: 1rem;
+  }
+  .tab-mark { width: 6px; height: 1.1rem; }
+  .tabs a[aria-current="page"] { background: var(--surface); }
+  .tabs a[aria-current="page"] .tab-mark { width: 6px; height: 1.4rem; }
+
+  .short { display: none; }
+  .long { display: inline; }
+
+  main { margin: 0; padding: 2.25rem 2.5rem 4rem; }
+}

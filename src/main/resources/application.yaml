@@ -5,6 +5,9 @@ spring:
     hibernate:
       ddl-auto: validate      # Schema kommt ausschließlich aus Flyway
     open-in-view: false
+  mvc:
+    problemdetails:
+      enabled: true          # Fehler als JSON mit Beschreibung zurückgeben
   # Lokal: Datenbank wird über compose.yaml automatisch gestartet und verbunden.
   # Produktion: SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD als Umgebungsvariablen.
 
