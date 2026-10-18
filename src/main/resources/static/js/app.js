@@ -23,6 +23,8 @@ const isAdmin = () => Boolean(state.user?.roles?.includes('ROLE_ADMIN'));
 const fullDate = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
 const dayOnly = new Intl.DateTimeFormat('de-DE', { day: 'numeric' });
 const monthShort = new Intl.DateTimeFormat('de-DE', { month: 'short' });
+const weekdayLong = new Intl.DateTimeFormat('de-DE', { weekday: 'long' });
+const timeOnly = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' });
 
 /** Text mit Leerzeilen → Absätze (bewusst kein HTML aus der Datenbank, das schützt vor Schadcode). */
 function paragraphs(text) {
@@ -236,6 +238,230 @@ async function viewNewsEditor(id) {
   });
 }
 
+// ---------- Termine ----------
+
+const sameDay = (a, b) => a.toDateString() === b.toDateString();
+
+/** Volle Zeitangabe für die Detailansicht, in ganzen Worten. */
+function eventWhenLong(event) {
+  const start = new Date(event.startsAt);
+  const end = event.endsAt ? new Date(event.endsAt) : null;
+  const startTag = `${weekdayLong.format(start)}, ${fullDate.format(start)}`;
+
+  if (event.allDay) {
+    return end && !sameDay(start, end)
+      ? `${startTag} bis ${weekdayLong.format(end)}, ${fullDate.format(end)}, ganztägig`
+      : `${startTag}, ganztägig`;
+  }
+  if (!end) return `${startTag}, ${timeOnly.format(start)} Uhr`;
+  if (sameDay(start, end)) return `${startTag}, ${timeOnly.format(start)} bis ${timeOnly.format(end)} Uhr`;
+  return `${startTag}, ${timeOnly.format(start)} Uhr bis ${weekdayLong.format(end)}, ${fullDate.format(end)}, ${timeOnly.format(end)} Uhr`;
+}
+
+/** Kurze Zeitangabe für die Liste – das Datum steht dort schon links daneben. */
+function eventWhenShort(event) {
+  const start = new Date(event.startsAt);
+  const end = event.endsAt ? new Date(event.endsAt) : null;
+
+  if (event.allDay) {
+    return end && !sameDay(start, end) ? `ganztägig bis ${fullDate.format(end)}` : 'ganztägig';
+  }
+  if (end && sameDay(start, end)) return `${timeOnly.format(start)} bis ${timeOnly.format(end)} Uhr`;
+  return `${timeOnly.format(start)} Uhr`;
+}
+
+function eventItemHtml(item) {
+  const date = new Date(item.startsAt);
+  const ort = item.location ? `<span class="sep">·</span>${escapeHtml(item.location)}` : '';
+  return `
+    <li>
+      <a class="event-item" href="#/termine/${item.id}">
+        <time class="event-date" datetime="${escapeHtml(item.startsAt)}">
+          <span class="day">${dayOnly.format(date)}</span>
+          <span class="month">${monthShort.format(date)}</span>
+        </time>
+        <div>
+          <h2>${escapeHtml(item.title)}</h2>
+          <p class="event-when">${escapeHtml(eventWhenShort(item))}${ort}</p>
+        </div>
+      </a>
+    </li>`;
+}
+
+async function viewEventList(past) {
+  const action = isAdmin() ? '<a class="btn" href="#/termine/neu">Termin eintragen</a>' : '';
+  const title = past ? 'Vergangene Termine' : 'Termine';
+  const moreLabel = past ? 'Noch ältere Termine laden' : 'Spätere Termine laden';
+  const moreButton = `<button class="btn secondary" type="button">${moreLabel}</button>`;
+  const toggle = past
+    ? '<p class="list-switch"><a href="#/termine">Zu den kommenden Terminen</a></p>'
+    : '<p class="list-switch"><a href="#/termine/vergangen">Vergangene Termine ansehen</a></p>';
+  const query = past ? '&vergangen=true' : '';
+
+  let page = 0;
+  const data = await api(`/api/events?page=0${query}`);
+
+  if (data.items.length === 0) {
+    const leer = past
+      ? 'Es gibt noch keine vergangenen Termine.'
+      : `Zurzeit steht nichts an.${isAdmin() ? ' Trag den ersten Termin über „Termin eintragen“ ein.' : ''}`;
+    render(`${pageHead('termine', title, action)}${toggle}<p class="muted">${leer}</p>`, 'termine');
+    return;
+  }
+
+  render(`
+    ${pageHead('termine', title, action)}
+    ${toggle}
+    <ol class="event-list" id="event-list">${data.items.map(eventItemHtml).join('')}</ol>
+    <div class="more" id="more">${data.hasMore ? moreButton : ''}</div>`, 'termine');
+
+  const more = document.getElementById('more');
+  more.addEventListener('click', async (clickEvent) => {
+    if (clickEvent.target.tagName !== 'BUTTON') return;
+    clickEvent.target.disabled = true;
+    page += 1;
+    const next = await api(`/api/events?page=${page}${query}`);
+    document.getElementById('event-list').insertAdjacentHTML('beforeend', next.items.map(eventItemHtml).join(''));
+    more.innerHTML = next.hasMore ? moreButton : '';
+  });
+}
+
+async function viewEventDetail(id) {
+  const event = await api(`/api/events/${encodeURIComponent(id)}`);
+
+  render(`
+    <a class="back" href="#/termine">Alle Termine</a>
+    <article>
+      ${pageHead('termine', event.title)}
+      <p class="article-meta">
+        ${escapeHtml(eventWhenLong(event))}${event.location ? `<br>${escapeHtml(event.location)}` : ''}
+      </p>
+      ${event.description ? `<div class="article-body">${paragraphs(event.description)}</div>` : ''}
+    </article>
+    ${isAdmin() ? `
+      <div class="admin-actions">
+        <a class="btn secondary" href="#/termine/${event.id}/bearbeiten">Bearbeiten</a>
+        <button class="btn danger" type="button" id="delete">Löschen</button>
+      </div>` : ''}`, 'termine');
+
+  document.getElementById('delete')?.addEventListener('click', async () => {
+    if (!confirm(`„${event.title}“ wirklich löschen?`)) return;
+    await api(`/api/events/${event.id}`, { method: 'DELETE' });
+    location.hash = '#/termine';
+  });
+}
+
+/** ISO-Zeitstempel → Wert für <input type="date"> bzw. <input type="datetime-local"> (Ortszeit). */
+function toInputValue(iso, allDay) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, '0');
+  const datum = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return allDay ? datum : `${datum}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Formulareingabe (Ortszeit) → ISO-Zeitstempel für die API. Leer bleibt leer. */
+function toInstant(value, allDay) {
+  if (!value) return null;
+  const d = new Date(allDay ? `${value}T00:00` : value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+async function viewEventEditor(id) {
+  if (!isAdmin()) {
+    render(`${pageHead('termine', 'Termin eintragen')}<p class="notice">Nur Admins können Termine eintragen und bearbeiten.</p>`, 'termine');
+    return;
+  }
+
+  const event = id
+    ? await api(`/api/events/${encodeURIComponent(id)}`)
+    : { title: '', description: '', location: '', startsAt: null, endsAt: null, allDay: false };
+  const type = event.allDay ? 'date' : 'datetime-local';
+
+  render(`
+    <a class="back" href="${id ? `#/termine/${event.id}` : '#/termine'}">Abbrechen</a>
+    ${pageHead('termine', id ? 'Termin bearbeiten' : 'Termin eintragen')}
+    <div id="editor-error"></div>
+    <form class="form" id="event-form">
+      <div class="field">
+        <label for="title">Titel</label>
+        <input id="title" name="title" maxlength="200" required value="${escapeHtml(event.title)}">
+      </div>
+      <div class="field">
+        <label for="location">Ort</label>
+        <span class="hint">Optional, zum Beispiel „Gemeindesaal“.</span>
+        <input id="location" name="location" maxlength="200" value="${escapeHtml(event.location)}">
+      </div>
+      <div class="field check">
+        <input id="allDay" name="allDay" type="checkbox" ${event.allDay ? 'checked' : ''}>
+        <label for="allDay">Ganztägig – ohne Uhrzeit</label>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="startsAt">Beginn</label>
+          <input id="startsAt" name="startsAt" type="${type}" required value="${toInputValue(event.startsAt, event.allDay)}">
+        </div>
+        <div class="field">
+          <label for="endsAt">Ende</label>
+          <span class="hint">Optional.</span>
+          <input id="endsAt" name="endsAt" type="${type}" value="${toInputValue(event.endsAt, event.allDay)}">
+        </div>
+      </div>
+      <div class="field">
+        <label for="description">Beschreibung</label>
+        <span class="hint">Optional. Eine Leerzeile beginnt einen neuen Absatz.</span>
+        <textarea id="description" name="description">${escapeHtml(event.description)}</textarea>
+      </div>
+      <div><button class="btn" type="submit">${id ? 'Änderungen speichern' : 'Termin eintragen'}</button></div>
+    </form>`, 'termine');
+
+  const form = document.getElementById('event-form');
+  const fehler = document.getElementById('editor-error');
+
+  // Das Häkchen schaltet Beginn und Ende zwischen Datum und Datum+Uhrzeit um.
+  form.allDay.addEventListener('change', () => {
+    const ganztags = form.allDay.checked;
+    [form.startsAt, form.endsAt].forEach((feld) => {
+      const datum = feld.value.slice(0, 10);
+      feld.type = ganztags ? 'date' : 'datetime-local';
+      // Ohne Uhrzeit verwirft der Browser den Wert eines datetime-local-Feldes.
+      feld.value = datum ? (ganztags ? datum : `${datum}T09:00`) : '';
+    });
+  });
+
+  form.addEventListener('submit', async (submitEvent) => {
+    submitEvent.preventDefault();
+    const button = form.querySelector('button');
+    const allDay = form.allDay.checked;
+    const body = {
+      title: form.title.value,
+      description: form.description.value,
+      location: form.location.value,
+      startsAt: toInstant(form.startsAt.value, allDay),
+      endsAt: toInstant(form.endsAt.value, allDay),
+      allDay,
+    };
+
+    if (body.endsAt && body.startsAt && body.endsAt < body.startsAt) {
+      fehler.innerHTML = '<p class="notice error">Das Ende darf nicht vor dem Beginn liegen.</p>';
+      return;
+    }
+
+    button.disabled = true;
+    try {
+      const saved = id
+        ? await api(`/api/events/${event.id}`, { method: 'PUT', body })
+        : await api('/api/events', { method: 'POST', body });
+      location.hash = `#/termine/${saved.id}`;
+    } catch (error) {
+      fehler.innerHTML = error.status === 400
+        ? '<p class="notice error">Titel und Beginn müssen ausgefüllt sein, und das Ende darf nicht vor dem Beginn liegen.</p>'
+        : '<p class="notice error">Speichern hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
+      button.disabled = false;
+    }
+  });
+}
+
 // ---------- Bereiche, die noch gebaut werden ----------
 
 function viewPlaceholder(section) {
@@ -277,6 +503,11 @@ async function route() {
     else if (section === 'news' && first === 'neu') await viewNewsEditor();
     else if (section === 'news' && second === 'bearbeiten') await viewNewsEditor(first);
     else if (section === 'news') await viewNewsDetail(first);
+    else if (section === 'termine' && !first) await viewEventList(false);
+    else if (section === 'termine' && first === 'vergangen') await viewEventList(true);
+    else if (section === 'termine' && first === 'neu') await viewEventEditor();
+    else if (section === 'termine' && second === 'bearbeiten') await viewEventEditor(first);
+    else if (section === 'termine') await viewEventDetail(first);
     else if (SECTIONS[section]) viewPlaceholder(section);
     else location.hash = '#/news';
   } catch (error) {
