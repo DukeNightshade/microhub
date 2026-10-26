@@ -14,6 +14,7 @@ public record BoardRequest(
         @NotNull BoardKind kind,
         @NotBlank @Size(max = 200) String title,
         @NotBlank @Size(max = 5000) String content,
+        @Size(max = 200) String contact,
         int durationDays) {
 
     @AssertTrue(message = "Die Laufzeit muss 7, 14, 30, 60 oder 90 Tage betragen.")

@@ -43,7 +43,7 @@ noch keine DNS-Einträge gesetzt). Komplett kostenlos betrieben.
 src/main/java/dev/microhub/
 ├── MicrohubApplication.java
 ├── common/      NotFoundException (→ 404), ConflictException (→ 409),
-│                BadRequestException (→ 400)
+│                BadRequestException (→ 400), ForbiddenException (→ 403)
 ├── config/      SecurityConfig
 ├── user/        AppUser, Role, AppUserRepository, AppUserDetailsService,
 │                AdminInitializer, AuthController
@@ -56,11 +56,12 @@ src/main/java/dev/microhub/
 │                WasteRequest, WasteItem, WastePage, WasteTypeOption, WasteImportResult
 ├── contacts/    Contact, ContactRepository, ContactService, ContactController,
 │                ContactRequest, ContactItem
-├── board/       (geplant) Schwarzes Brett
+├── board/       BoardPost, BoardKind, BoardPostRepository, BoardService, BoardController,
+│                BoardRequest, BoardItem, BoardOptions
 └── push/        (geplant) Web Push, Abos, Scheduler
 src/main/resources/
 ├── application.yaml
-├── db/migration/V1__init.sql, V2__contact_public.sql
+├── db/migration/V1__init.sql … V4__board_post_contact.sql
 └── static/      index.html, css/app.css, js/api.js, js/app.js
 ```
 
@@ -74,8 +75,8 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   `waste_collection` (mit `reminder_sent`), `contact`, `board_post` (mit `expires_at`),
   `push_subscription` (mit `notify_news/events/waste/board`).
 - **Ausgeführte Migrationen nie ändern.** Änderungen nur als neue Datei `V2__…sql` usw.
-  Ausgeführt sind `V1` und `V2__contact_public.sql` (Spalte `contact.public`);
-  die nächste Migration heißt `V3__…`.
+  Ausgeführt sind `V1` bis `V4` (`V2` `contact.public`, `V3` `board_post.kind`,
+  `V4` `board_post.contact`); die nächste Migration heißt `V5__…`.
 - `open-in-view: false` → Lazy-Relationen nur innerhalb von `@Transactional` auflösen
   (oder `@EntityGraph` nutzen, siehe `NewsRepository`).
 - Text-Spalten (`TEXT`) in Entities mit `@Column(columnDefinition = "text")` mappen.
@@ -91,7 +92,8 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   (`static/js/api.js`). Nach Login/Logout `/api/auth/me` erneut aufrufen (Token rotiert).
 - Regeln: GET `/api/news|events|waste|contacts/**` öffentlich (bei Kontakten filtert der
   `ContactService`: Gäste nur `public = true`); `/api/board/**`, `/api/push/**` nur eingeloggt; Schreibzugriffe auf
-  news/events/waste/contacts nur `ROLE_ADMIN`.
+  news/events/waste/contacts nur `ROLE_ADMIN`. Beim Brett prüft der `BoardService` je Aushang
+  „Autor oder Admin“ (`BoardPost.canBeEditedBy`), sonst 403 (`ForbiddenException`).
 - Passwort-Hashing: `DelegatingPasswordEncoder` (bcrypt).
 - Erster Admin wird beim Start von `AdminInitializer` aus `ADMIN_USERNAME`
   (Standard `admin`) und `ADMIN_PASSWORD` angelegt, falls noch kein Admin existiert.
@@ -106,7 +108,7 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   - Müll: `#/muell`, `#/muell/vergangen`, `#/muell/neu`, `#/muell/import`,
     `#/muell/:id/bearbeiten` (keine Detailseite – die Zeile führt Admins direkt ins Formular)
   - Kontakte: `#/kontakte`, `#/kontakte/neu`, `#/kontakte/:id/bearbeiten` (keine Detailseite)
-  - noch Platzhalter: `#/brett`
+  - Brett: `#/brett`, `#/brett/neu`, `#/brett/:id/bearbeiten` (nur eingeloggt, keine Detailseite)
 - `static/js/api.js` kennt vier Arten von Anfragen: GET, `body` (JSON), `form`
   (form-urlencoded, für den Login) und `upload` (FormData, für den ICS-Import).
 - Alle Daten aus der API **immer escapen** (`escapeHtml`). Kein HTML aus der Datenbank
@@ -137,7 +139,7 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
 - [x] Termine-Modul (API) + Frontend (Liste, kommend/vergangen, Detail, Formular)
 - [x] Müllabfuhr (API, ICS-Import, Frontend) – Erinnerung per Push kommt später
 - [x] Kontakte (API + Frontend, öffentlich/intern getrennt)
-- [ ] Schwarzes Brett
+- [x] Schwarzes Brett (API + Frontend, Zettel-Karten mit Filter)
 - [ ] Benutzerverwaltung / Registrierung über Freischaltcodes
 - [ ] PWA (manifest.json, Service Worker, Icons, Offline-Fallback)
 - [ ] Web Push (VAPID)
@@ -146,21 +148,21 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
 
 ## Handover – Stand 26.10.2026
 
-**Zuletzt gemacht:** Kontakte-Modul fertig (Migration V2, API, Frontend), mit Gast und Admin
-im Browser getestet. Commits `2cb4c52` (API) und `984bffd` (Frontend) plus diese Doku liegen
-nur lokal – `origin/master` steht auf `e53769f`.
+**Zuletzt gemacht:** Kontakte-Modul und Schwarzes Brett fertig (API + Frontend), beide mit
+Gast, Benutzern und Admin im Browser getestet. Die Brett-Commits ab `fac98d9` liegen nur
+lokal, bis gepusht wird.
 
 **Zustand der lokalen Umgebung:**
 - Datenbank enthält die **185 echten Abfuhrtermine** aus den ICS-Dateien des Landkreises
-  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen. Flyway steht auf `V2`.
-- Genau **ein Benutzer**: `admin` (ROLE_ADMIN). News, Termine und Kontakte sind leer.
+  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen. Flyway steht auf `V4`.
+- Genau **ein Benutzer**: `admin` (ROLE_ADMIN). News, Termine, Kontakte und Brett sind leer.
 - Der Container `microhub-postgres-1` läuft oder lässt sich mit dem App-Start neu hochziehen.
 
-**Nächster Schritt: Schwarzes Brett** (Tabelle `board_post` mit `expires_at` steht schon in V1).
-Vorher mit dem Entwickler klären: Wer darf löschen (Autor und Admin?), wie lange bleibt ein
-Beitrag stehen (Standard für `expires_at`), braucht es Arten wie „Biete/Suche“?
-
-Danach: Benutzerverwaltung mit Freischaltcodes.
+**Nächster Schritt: Benutzerverwaltung mit Freischaltcodes** (Entscheidung 1). Erst dadurch
+kann es normale Mitglieder geben – bisher existiert nur der Admin, das Brett ist also für
+echte Nutzer noch nicht erreichbar. Vorher mit dem Entwickler klären: Gestaltung der
+Registrierungsseite, welche Angaben bei der Registrierung (Anzeigename, E-Mail?), wie der
+Admin Codes verteilt (Liste zum Ausdrucken?), Passwort vergessen.
 
 ## Getroffene Entscheidungen
 
@@ -185,7 +187,10 @@ Danach: Benutzerverwaltung mit Freischaltcodes.
    Migration V3). Die Laufzeit wählt man beim Schreiben: **7, 14, 30, 60 oder 90 Tage**,
    Standard 30; daraus wird `expires_at` berechnet, abgelaufene Aushänge werden nicht mehr
    angezeigt. Unter dem Aushang steht der **Anzeigename** (`display_name`), nicht der
-   Benutzername.
+   Benutzername. Gestaltung: **Zettel-Karten auf Kork** mit Filter „Alle · Suche · Biete ·
+   Tausche“ (filtert im Browser). Für Rückmeldungen gibt es ein **eigenes optionales Feld
+   „Kontakt“** (Migration V4) – bewusst nicht automatisch die E-Mail des Kontos (DSGVO).
+   Telefonnummern und E-Mail-Adressen darin werden antippbar.
 
 ## Festlegungen Termine-Modul
 

@@ -5,7 +5,7 @@ const SECTIONS = {
   termine:  { title: 'Termine',         color: '--c-events' },
   muell:    { title: 'Müllabfuhr',      color: '--c-waste' },
   kontakte: { title: 'Kontakte',        color: '--c-contacts' },
-  brett:    { title: 'Schwarzes Brett', color: '--c-board',    loginRequired: true },
+  brett:    { title: 'Schwarzes Brett', color: '--c-board' },
 };
 
 const state = { user: null, returnTo: null };
@@ -838,19 +838,195 @@ async function viewContactEditor(id) {
   });
 }
 
-// ---------- Bereiche, die noch gebaut werden ----------
+// ---------- Schwarzes Brett ----------
 
-function viewPlaceholder(section) {
-  const { title, loginRequired } = SECTIONS[section];
-  if (loginRequired && !state.user) {
-    state.returnTo = `#/${section}`;
-    render(`
-      ${pageHead(section, title)}
-      <p class="notice">Dieser Bereich ist nur für angemeldete Mitglieder sichtbar.</p>
-      <a class="btn" href="#/login">Anmelden</a>`, section);
+const dayAndMonth = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'long' });
+
+/** Arten und Laufzeiten kommen aus der API, damit sie nur im Backend gepflegt werden. */
+let boardOptions = null;
+/** Gewählter Filter bleibt beim Zurückkehren zur Liste erhalten. */
+let boardFilter = 'ALLE';
+
+async function loadBoardOptions() {
+  if (!boardOptions) boardOptions = await api('/api/board/options');
+  return boardOptions;
+}
+
+function loginPrompt(section) {
+  state.returnTo = location.hash;
+  render(`
+    ${pageHead(section, SECTIONS[section].title)}
+    <p class="notice">Dieser Bereich ist nur für angemeldete Mitglieder sichtbar.</p>
+    <a class="btn" href="#/login">Anmelden</a>`, section);
+}
+
+/** Telefonnummer oder E-Mail werden antippbar, alles andere (z. B. „Whg. 3, 2. OG“) bleibt Text. */
+function boardContactHtml(contact) {
+  const value = contact.trim();
+  if (/^\+?[\d\s/()-]{5,}$/.test(value)) return `<a href="${escapeHtml(telHref(value))}">${escapeHtml(value)}</a>`;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return `<a href="mailto:${escapeHtml(value)}">${escapeHtml(value)}</a>`;
+  return escapeHtml(value);
+}
+
+function boardCardHtml(post) {
+  return `
+    <li class="note" data-kind="${escapeHtml(post.kind)}">
+      <span class="note-kind kind-${escapeHtml(post.kind)}">${escapeHtml(post.label)}</span>
+      <h2>${escapeHtml(post.title)}</h2>
+      <div class="note-body">${paragraphs(post.content)}</div>
+      ${post.contact ? `<p class="note-contact"><span class="muted">Kontakt:</span> ${boardContactHtml(post.contact)}</p>` : ''}
+      <p class="note-meta">
+        ${escapeHtml(post.authorName)} · hängt bis ${dayAndMonth.format(new Date(post.expiresAt))}
+      </p>
+      ${post.editable ? `<a class="note-edit" href="#/brett/${post.id}/bearbeiten">Bearbeiten</a>` : ''}
+    </li>`;
+}
+
+async function viewBoardList() {
+  if (!state.user) {
+    loginPrompt('brett');
     return;
   }
-  render(`${pageHead(section, title)}<p class="muted">Dieser Bereich wird gerade gebaut.</p>`, section);
+
+  const [options, posts] = await Promise.all([loadBoardOptions(), api('/api/board')]);
+  const action = '<a class="btn" href="#/brett/neu">Aushang schreiben</a>';
+
+  if (posts.length === 0) {
+    render(`
+      ${pageHead('brett', 'Schwarzes Brett', action)}
+      <p class="muted">Am Brett hängt gerade nichts. Du suchst oder bietest etwas? Schreib den ersten Aushang.</p>`, 'brett');
+    return;
+  }
+
+  const filters = [{ value: 'ALLE', label: 'Alle' }, ...options.kinds].map((kind) => `
+    <button type="button" class="filter" data-filter="${escapeHtml(kind.value)}"
+            aria-pressed="${kind.value === boardFilter}">${escapeHtml(kind.label)}</button>`).join('');
+
+  render(`
+    ${pageHead('brett', 'Schwarzes Brett', action)}
+    <div class="filters" role="group" aria-label="Nach Art filtern">${filters}</div>
+    <p class="muted" id="board-empty" hidden>Zu dieser Art hängt gerade nichts.</p>
+    <ul class="board" id="board">${posts.map(boardCardHtml).join('')}</ul>`, 'brett');
+
+  // Gefiltert wird im Browser: alle Aushänge sind schon geladen, das spart Anfragen.
+  const applyFilter = () => {
+    let visible = 0;
+    document.querySelectorAll('#board .note').forEach((note) => {
+      note.hidden = boardFilter !== 'ALLE' && note.dataset.kind !== boardFilter;
+      if (!note.hidden) visible += 1;
+    });
+    document.querySelectorAll('.filter').forEach((button) => {
+      button.setAttribute('aria-pressed', String(button.dataset.filter === boardFilter));
+    });
+    document.getElementById('board-empty').hidden = visible > 0;
+  };
+
+  document.querySelector('.filters').addEventListener('click', (clickEvent) => {
+    const button = clickEvent.target.closest('.filter');
+    if (!button) return;
+    boardFilter = button.dataset.filter;
+    applyFilter();
+  });
+  applyFilter();
+}
+
+async function viewBoardEditor(id) {
+  if (!state.user) {
+    loginPrompt('brett');
+    return;
+  }
+
+  const options = await loadBoardOptions();
+  const post = id
+    ? await api(`/api/board/${encodeURIComponent(id)}`)
+    : { kind: options.kinds[0].value, title: '', content: '', contact: '', editable: true };
+
+  if (!post.editable) {
+    render(`${pageHead('brett', 'Aushang bearbeiten')}<p class="notice">Diesen Aushang können nur die Person, die ihn geschrieben hat, und Admins ändern.</p>`, 'brett');
+    return;
+  }
+
+  const kinds = options.kinds.map((kind) => `
+    <label class="choice">
+      <input type="radio" name="kind" value="${escapeHtml(kind.value)}" ${kind.value === post.kind ? 'checked' : ''}>
+      <span>${escapeHtml(kind.label)}</span>
+    </label>`).join('');
+
+  const durations = options.durations.map((days) => `
+    <option value="${days}" ${days === options.defaultDuration ? 'selected' : ''}>${days} Tage</option>`).join('');
+
+  const durationHint = id
+    ? `Hängt bisher bis ${escapeHtml(fullDate.format(new Date(post.expiresAt)))}. Beim Speichern wird die Laufzeit ab heute neu gerechnet.`
+    : 'Danach verschwindet der Aushang von selbst.';
+
+  render(`
+    <a class="back" href="#/brett">Abbrechen</a>
+    ${pageHead('brett', id ? 'Aushang bearbeiten' : 'Aushang schreiben')}
+    <div id="editor-error"></div>
+    <form class="form" id="board-form">
+      <fieldset class="field">
+        <legend>Art</legend>
+        <div class="choices">${kinds}</div>
+      </fieldset>
+      <div class="field">
+        <label for="title">Überschrift</label>
+        <input id="title" name="title" maxlength="200" required value="${escapeHtml(post.title)}">
+      </div>
+      <div class="field">
+        <label for="content">Text</label>
+        <textarea id="content" name="content" maxlength="5000" required>${escapeHtml(post.content)}</textarea>
+      </div>
+      <div class="field">
+        <label for="contact">Kontakt</label>
+        <span class="hint">Optional. Wie man dich erreicht, zum Beispiel Telefonnummer, E-Mail oder „Whg. 3, 2. OG“. Sehen alle angemeldeten Mitglieder.</span>
+        <input id="contact" name="contact" maxlength="200" value="${escapeHtml(post.contact)}">
+      </div>
+      <div class="field">
+        <label for="durationDays">Wie lange soll der Aushang hängen?</label>
+        <span class="hint">${durationHint}</span>
+        <select id="durationDays" name="durationDays">${durations}</select>
+      </div>
+      <div class="admin-actions">
+        <button class="btn" type="submit">${id ? 'Änderungen speichern' : 'Aushang aufhängen'}</button>
+        ${id ? '<button class="btn danger" type="button" id="delete">Abnehmen</button>' : ''}
+      </div>
+    </form>`, 'brett');
+
+  const form = document.getElementById('board-form');
+  const errorBox = document.getElementById('editor-error');
+
+  document.getElementById('delete')?.addEventListener('click', async () => {
+    if (!confirm(`„${post.title}“ wirklich abnehmen? Der Aushang wird gelöscht.`)) return;
+    await api(`/api/board/${post.id}`, { method: 'DELETE' });
+    location.hash = '#/brett';
+  });
+
+  form.addEventListener('submit', async (submitEvent) => {
+    submitEvent.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    const fields = form.elements;
+    const body = {
+      kind: fields.kind.value,
+      title: fields.title.value,
+      content: fields.content.value,
+      contact: fields.contact.value,
+      durationDays: Number(fields.durationDays.value),
+    };
+
+    try {
+      if (id) await api(`/api/board/${post.id}`, { method: 'PUT', body });
+      else await api('/api/board', { method: 'POST', body });
+      location.hash = '#/brett';
+    } catch (error) {
+      errorBox.innerHTML = error.status === 400
+        ? '<p class="notice error">Überschrift und Text müssen ausgefüllt sein.</p>'
+        : error.status === 403
+          ? `<p class="notice error">${escapeHtml(error.message)}</p>`
+          : '<p class="notice error">Speichern hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
+      button.disabled = false;
+    }
+  });
 }
 
 // ---------- Fehler ----------
@@ -892,7 +1068,9 @@ async function route() {
     else if (section === 'kontakte' && !first) await viewContactList();
     else if (section === 'kontakte' && first === 'neu') await viewContactEditor();
     else if (section === 'kontakte' && second === 'bearbeiten') await viewContactEditor(first);
-    else if (SECTIONS[section]) viewPlaceholder(section);
+    else if (section === 'brett' && !first) await viewBoardList();
+    else if (section === 'brett' && first === 'neu') await viewBoardEditor();
+    else if (section === 'brett' && second === 'bearbeiten') await viewBoardEditor(first);
     else location.hash = '#/news';
   } catch (error) {
     viewError(error, section);

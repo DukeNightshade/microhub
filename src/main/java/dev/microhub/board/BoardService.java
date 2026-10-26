@@ -51,6 +51,7 @@ public class BoardService {
                 request.kind(),
                 request.title().strip(),
                 request.content().strip(),
+                blankToNull(request.contact()),
                 currentUser(username),
                 expiresAt(request));
         return BoardItem.from(boardPostRepository.save(post), true);
@@ -60,7 +61,8 @@ public class BoardService {
     @Transactional
     public BoardItem update(long id, BoardRequest request, String username) {
         BoardPost post = findEditable(id, username);
-        post.update(request.kind(), request.title().strip(), request.content().strip(), expiresAt(request));
+        post.update(request.kind(), request.title().strip(), request.content().strip(),
+                blankToNull(request.contact()), expiresAt(request));
         return BoardItem.from(post, true);
     }
 
@@ -90,5 +92,9 @@ public class BoardService {
 
     private static Instant expiresAt(BoardRequest request) {
         return Instant.now().plus(Duration.ofDays(request.durationDays()));
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
     }
 }

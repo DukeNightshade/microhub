@@ -23,6 +23,10 @@ public class BoardPost {
     @Column(nullable = false, columnDefinition = "text")
     private String content;
 
+    /** Wie Interessierte den Autor erreichen; optional, vom Autor selbst eingetragen. */
+    @Column(length = 200)
+    private String contact;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "author_id")
     private AppUser author;
@@ -38,18 +42,21 @@ public class BoardPost {
         // für JPA
     }
 
-    public BoardPost(BoardKind kind, String title, String content, AppUser author, Instant expiresAt) {
+    public BoardPost(BoardKind kind, String title, String content, String contact, AppUser author,
+                     Instant expiresAt) {
         this.kind = kind;
         this.title = title;
         this.content = content;
+        this.contact = contact;
         this.author = author;
         this.expiresAt = expiresAt;
     }
 
-    public void update(BoardKind kind, String title, String content, Instant expiresAt) {
+    public void update(BoardKind kind, String title, String content, String contact, Instant expiresAt) {
         this.kind = kind;
         this.title = title;
         this.content = content;
+        this.contact = contact;
         this.expiresAt = expiresAt;
     }
 
@@ -65,6 +72,7 @@ public class BoardPost {
     public BoardKind getKind() { return kind; }
     public String getTitle() { return title; }
     public String getContent() { return content; }
+    public String getContact() { return contact; }
     public AppUser getAuthor() { return author; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getExpiresAt() { return expiresAt; }
