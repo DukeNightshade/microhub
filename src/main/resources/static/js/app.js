@@ -45,8 +45,12 @@ function pageHead(section, title, actionHtml = '') {
     </header>`;
 }
 
+/** Kalender und Brett brauchen am Desktop mehr Platz als Textseiten. */
+const WIDE_SECTIONS = new Set(['kalender', 'brett']);
+
 function render(html, section) {
   main.style.setProperty('--sec', `var(${SECTIONS[section]?.color ?? '--ink'})`);
+  main.classList.toggle('wide', WIDE_SECTIONS.has(section));
   main.innerHTML = html;
 }
 
@@ -441,7 +445,7 @@ function categoryMark(category) {
 function calendarEntryHtml(entry, admin) {
   if (entry.type === 'EVENT') {
     const href = entry.newsId ? `#/news/${entry.newsId}` : `#/kalender/termin/${entry.id}`;
-    const where = entry.location ? `<span class="sep">·</span>${escapeHtml(entry.location)}` : '';
+    const where = entry.location ? `, ${escapeHtml(entry.location)}` : '';
     return `
       <li class="cal-entry" data-category="EVENT">
         <a class="cal-row" href="${href}">
@@ -636,6 +640,8 @@ async function viewCalendarMonth(yearMonth) {
 
   render(`
     ${head}
+    <div class="cal-month-layout">
+    <div>
     <div class="cal-month-nav">
       <a class="btn small secondary" href="#/kalender/monat/${ym(new Date(year, month - 2, 1))}" aria-label="Vorheriger Monat">‹</a>
       <h2>${escapeHtml(monthTitle.format(firstOfMonth))}</h2>
@@ -646,7 +652,9 @@ async function viewCalendarMonth(yearMonth) {
       ${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((d) => `<span class="cal-weekday">${d}</span>`).join('')}
       ${cells.join('')}
     </div>
-    <div id="cal-selected"></div>`, 'kalender');
+    </div>
+    <div id="cal-selected"></div>
+    </div>`, 'kalender');
 
   const panel = document.getElementById('cal-selected');
   let applyFilter = () => {};
@@ -1180,7 +1188,7 @@ function boardCardHtml(post) {
       <div class="note-body">${paragraphs(post.content)}</div>
       ${post.contact ? `<p class="note-contact"><span class="muted">Kontakt:</span> ${boardContactHtml(post.contact)}</p>` : ''}
       <p class="note-meta">
-        ${escapeHtml(post.authorName)} · hängt bis ${dayAndMonth.format(new Date(post.expiresAt))}
+        ${escapeHtml(post.authorName)}, hängt bis ${dayAndMonth.format(new Date(post.expiresAt))}
       </p>
       ${post.editable ? `<a class="note-edit" href="#/brett/${post.id}/bearbeiten">Bearbeiten</a>` : ''}
     </li>`;
@@ -1204,7 +1212,7 @@ async function viewBoardList() {
         <li>
           <div>
             <strong>${escapeHtml(post.title)}</strong>
-            <span class="muted">abgelaufen am ${dayAndMonth.format(new Date(post.expiresAt))} ·
+            <span class="muted">abgelaufen am ${dayAndMonth.format(new Date(post.expiresAt))},
               wird am ${dayAndMonth.format(new Date(post.deletionDate))} gelöscht</span>
           </div>
           <a class="btn small secondary" href="#/brett/${post.id}/bearbeiten">Noch einmal aufhängen</a>
@@ -1689,8 +1697,8 @@ async function viewAdminMembers(notice = '') {
     return `
       <li class="member">
         <div class="member-head"><strong>${escapeHtml(member.displayName)}</strong>${tags}</div>
-        <p class="muted">${escapeHtml(member.username)}${member.apartment ? ` · ${escapeHtml(member.apartment)}` : ''}
-          · dabei seit ${fullDate.format(new Date(member.createdAt))}</p>
+        <p class="muted">${member.apartment ? `${escapeHtml(member.apartment)}, ` : ''}Benutzername ${escapeHtml(member.username)},
+          dabei seit ${fullDate.format(new Date(member.createdAt))}</p>
         <div class="member-actions">${actions}</div>
       </li>`;
   }).join('');
@@ -1762,7 +1770,7 @@ async function viewAdminCodes(notice = '') {
         aria-label="${escapeHtml(code.label)} zum Drucken auswählen"></label>
       <div>
         <div class="member-head"><strong>${escapeHtml(code.label)}</strong>${codeStatus(code)}</div>
-        <p class="muted"><code class="secret">${escapeHtml(code.code)}</code> · ${code.usedCount} von ${code.maxUses} benutzt</p>
+        <p class="muted"><code class="secret">${escapeHtml(code.code)}</code>, ${code.usedCount} von ${code.maxUses} benutzt</p>
       </div>
       <div class="code-actions">
         <button type="button" class="btn small secondary" data-id="${code.id}" data-revoked="${!code.revoked}">

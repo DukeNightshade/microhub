@@ -74,7 +74,8 @@ src/main/java/dev/microhub/
 src/main/resources/
 ├── application.yaml
 ├── db/migration/V1__init.sql … V8__event_news_link.sql
-└── static/      index.html, css/app.css, js/api.js, js/app.js
+└── static/      index.html, css/app.css, js/api.js, js/app.js,
+                 fonts/ (WOFF2 + OFL-Lizenztexte, selbst ausgeliefert)
 ```
 
 Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
@@ -145,13 +146,29 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   (form-urlencoded, für den Login) und `upload` (FormData, für den ICS-Import).
 - Alle Daten aus der API **immer escapen** (`escapeHtml`). Kein HTML aus der Datenbank
   rendern; Fließtext wird über Leerzeilen in Absätze geteilt.
-- Gestaltung: Bereichsfarben nach Tonnenfarben (`--c-news` blau, `--c-events` grün,
-  `--c-waste` gelb, `--c-contacts` grau, `--c-board` Kork). Hell-/Dunkelmodus über
-  `prefers-color-scheme`. Handy: Tab-Leiste unten; ab 900 px: Seitenleiste links.
+- **Gestaltung „Hausnummernschild“** (26.10.2026, mit dem Entwickler abgestimmt):
+  - Erkennungszeichen ist das **blaue Emailleschild** oben links (`.brand`, blaues Feld mit
+    weißer Zierlinie per `box-shadow`). Bewusst das einzige auffällige Element – alles andere
+    bleibt ruhig.
+  - Farben aus Treppenhaus und Ostseegegend: Kalkputz `--paper`, Emaille-Blau `--enamel` /
+    `--c-news`, Kiefer `--c-events`, Ostsee-Grau `--c-contacts`, Kork `--c-board`. Die
+    Tonnenfarben (`.wt-*`) gelten nur für die Müllpunkte.
+  - Schriften: **Barlow Semi Condensed** (600/700) für Schild, Überschriften, Knöpfe, Reiter,
+    Chips (`--font-sign`); **Atkinson Hyperlegible** (400/700) für Fließtext (`--font`).
+  - Keine Großbuchstaben-Etiketten mit Sperrung, keine Mittelpunkte als Trenner (Kommas).
+  - Hell-/Dunkelmodus über `prefers-color-scheme`; Dunkel = Schieferblau `#141C26`.
+  - Handy: Tab-Leiste unten, Kopfzeile bricht bei Platzmangel um; ab 900 px Seitenleiste links.
+    Kalender und Brett nutzen am Desktop `main.wide` (66rem), ab 1100 px steht der gewählte
+    Kalendertag rechts neben dem Raster.
 - Dunkelmodus: gefüllte Knöpfe, ausgewählte Chips und Umschalter **nicht weiß**, sondern
   dunkel in der Bereichsfarbe getönt (`color-mix` mit `--sec`, Regel am Ende von `app.css`).
   Wunsch des Entwicklers – weiße Flächen wirkten auf dunklem Grund zu grell.
-- **Keine Google Fonts oder andere externe CDNs** (DSGVO in Deutschland) – Systemschrift.
+- **Keine Google Fonts oder andere externe CDNs** (DSGVO in Deutschland). Schriften liegen als
+  WOFF2 in `static/fonts` (aus den Fontsource-Paketen, OFL-Lizenz – Lizenztexte daneben) und
+  kommen vom eigenen Server; `/fonts/**` ist in der SecurityConfig freigegeben.
+- `X-Frame-Options` bleibt auf DENY (Schutz gegen Clickjacking) – die Seite lässt sich daher
+  nicht in einem `<iframe>` testen. Handy-Ansicht prüfen: Desktop-Media-Queries im Tab
+  abschalten und `body` auf 390 px begrenzen.
 - Texte in einfachem Deutsch aus Nutzersicht, Buttons sagen, was passiert.
 
 ## Lokal starten (Windows)

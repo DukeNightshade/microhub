@@ -33,7 +33,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Frontend, PWA-Dateien und Fehlerseite: für alle
                 .requestMatchers("/", "/index.html", "/manifest.json", "/sw.js", "/favicon.ico",
-                        "/css/**", "/js/**", "/icons/**", "/error").permitAll()
+                        "/css/**", "/js/**", "/icons/**", "/fonts/**", "/error").permitAll()
                 // Login, Login-Status und Registrierung mit Freischaltcode
                 .requestMatchers("/api/auth/**", "/actuator/health").permitAll()
 

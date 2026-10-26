@@ -1,48 +1,81 @@
 /* =========================================================
-   MicroHub – Grundgestaltung
-   Farben der Bereiche angelehnt an die Tonnenfarben:
-   Papier blau, Bio/Garten grün, Gelbe Tonne, Restmüll grau, Kork fürs Brett.
-   Schrift: Systemschrift (keine externen Fonts → schnell und datenschutzfreundlich).
+   MicroHub – Gestaltung „Hausnummernschild“
+   Erkennungszeichen ist das blaue Emailleschild, wie es an deutschen Häusern und Straßen
+   hängt. Die Farben kommen aus Treppenhaus und Ostseegegend: Kalkputz, Emaille-Blau, Kiefer,
+   Ostsee-Grau, Kork. Die Tonnenfarben gelten nur für die Müllpunkte, weil sie dort etwas bedeuten.
+
+   Schriften liegen in /fonts und werden vom eigenen Server geladen (keine fremden Server, DSGVO):
+   - Barlow Semi Condensed: schmale Beschilderungsschrift für Schild, Überschriften, Knöpfe
+   - Atkinson Hyperlegible: Fließtext, entworfen für gute Lesbarkeit auch bei Sehschwäche
    ========================================================= */
+
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  src: url("/fonts/atkinson-hyperlegible-latin-400-normal.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  src: url("/fonts/atkinson-hyperlegible-latin-700-normal.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Barlow Semi Condensed";
+  src: url("/fonts/barlow-semi-condensed-latin-600-normal.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Barlow Semi Condensed";
+  src: url("/fonts/barlow-semi-condensed-latin-700-normal.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
 
 :root {
   color-scheme: light;
-  --paper: #F2F4F1;
-  --surface: #FFFFFF;
-  --ink: #17232B;
-  --muted: #56636B;
-  --line: #D3DAD5;
+  --paper: #ECEEEA;     /* Kalkputz: kühles Weiß wie ein frisch gestrichenes Treppenhaus */
+  --surface: #FAFBF9;
+  --ink: #18222D;       /* Tinte */
+  --muted: #55636E;
+  --line: #D0D6D2;
 
-  --c-news: #1F5FA8;
-  --c-events: #2E7D4F;
-  --c-waste: #D9A400;
-  --c-contacts: #5B6670;
-  --c-board: #8A5A2B;
+  --enamel: #1F3B73;    /* Emaille-Blau des Schilds */
+  --enamel-ink: #FFFFFF;
+
+  --c-news: #1F3B73;    /* Emaille-Blau */
+  --c-events: #2F6B4F;  /* Kiefer */
+  --c-contacts: #5C717D; /* Ostsee-Grau */
+  --c-board: #8A5A2B;   /* Kork */
 
   --danger: #B3261E;
   --focus: #1F5FA8;
 
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-sign: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
   --radius: 6px;
   --nav-h: 4rem;
   box-sizing: border-box;
 }
 
 @media (prefers-color-scheme: dark) {
+  /* Nachts im Treppenhaus: tiefes Schieferblau statt Schwarz, das Schild bleibt blau */
   :root {
     color-scheme: dark;
-    --paper: #11181D;
-    --surface: #18232A;
-    --ink: #E6ECEA;
-    --muted: #9AA7AE;
-    --line: #2A363D;
-    --c-news: #6FA8E8;
-    --c-events: #6CC08F;
-    --c-waste: #F0C640;
-    --c-contacts: #A7B2B9;
+    --paper: #141C26;
+    --surface: #1B2531;
+    --ink: #E4E9EE;
+    --muted: #9AA8B4;
+    --line: #2B3745;
+    --enamel: #2C56A6;  /* heller als am Tag, sonst verschwindet das Schild im dunklen Grund */
+    --c-news: #7EA2E6;
+    --c-events: #6DBB93;
+    --c-contacts: #9DB0BC;
     --c-board: #D29A62;
     --danger: #F2867F;
-    --focus: #6FA8E8;
+    --focus: #7EA2E6;
   }
 }
 
@@ -55,8 +88,14 @@ body {
   min-height: 100dvh;
   background: var(--paper);
   color: var(--ink);
-  font: 1.0625rem/1.55 var(--font);
+  font: 1.0625rem/1.6 var(--font);
 }
+
+/* Überschriften, Knöpfe und Reiter sprechen die Sprache der Beschilderung */
+h1, h2, h3, .btn, .tabs a, .filter, .segmented a, .subnav a {
+  font-family: var(--font-sign);
+}
+h1, h2, h3 { font-weight: 700; letter-spacing: .005em; }
 
 a { color: inherit; }
 
@@ -84,43 +123,51 @@ a { color: inherit; }
   top: 0;
   z-index: 20;
   display: flex;
+  flex-wrap: wrap;   /* schmale Handys: die Kontolinks rutschen unter das Schild statt über den Rand */
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: .6rem 1rem;
   padding: calc(env(safe-area-inset-top, 0px) + .75rem) 1.25rem .75rem;
   background: var(--paper);
   border-bottom: 1px solid var(--line);
 }
 
+/*
+ * Das Emailleschild: blaues Feld, schmaler blauer Rand, dann die weiße Zierlinie – genau wie
+ * ein Hausnummern- oder Straßenschild. Die zwei inneren Schatten zeichnen Rand und Linie,
+ * damit kein Bild nötig ist. Bewusst das einzige auffällige Element der Seite.
+ */
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: .6rem;
-  font-size: 1.25rem;
-  font-weight: 800;
-  letter-spacing: -.01em;
+  padding: .42rem 1.35rem .48rem;
+  border-radius: 10px;
+  background: var(--enamel);
+  box-shadow:
+    inset 0 0 0 4px var(--enamel),
+    inset 0 0 0 7px var(--enamel-ink),
+    0 1px 0 rgba(0, 0, 0, .25),
+    0 2px 6px rgba(0, 0, 0, .12);
+  color: var(--enamel-ink);
+  font-family: var(--font-sign);
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: .04em;
   text-decoration: none;
 }
-
-/* Die fünf Bereichsfarben nebeneinander – wie Tonnen am Straßenrand */
-.brand-mark {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 1.1rem;
+@media (max-width: 420px) {
+  .brand { font-size: 1.4rem; padding: .36rem 1.1rem .4rem; }
 }
-.brand-mark i {
-  display: block;
-  width: 5px;
-  height: 100%;
-  border-radius: 1px 1px 0 0;
-  background: var(--sec);
-}
+.brand:focus-visible { outline-offset: 3px; }
 
 .account {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
-  gap: .75rem;
+  gap: .4rem .75rem;
+  margin-left: auto;
   font-size: .95rem;
 }
 .account .who { color: var(--muted); }
@@ -151,7 +198,9 @@ a { color: inherit; }
   min-height: var(--nav-h);
   padding: .65rem .25rem .55rem;
   color: var(--muted);
-  font-size: .78rem;
+  font-size: .95rem;
+  font-weight: 600;
+  letter-spacing: .01em;
   text-decoration: none;
 }
 
@@ -175,6 +224,8 @@ main {
   margin: 0 auto;
   padding: 1.75rem 1.25rem calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 2.5rem);
 }
+/* Kalender und Brett: mehr Breite für Monatsraster und Korkwand (Klasse setzt render()) */
+main.wide { max-width: 66rem; }
 /* main bekommt beim Seitenwechsel den Fokus (für Screenreader), aber ohne sichtbaren Rahmen */
 main:focus, main:focus-visible { outline: none; }
 
@@ -187,18 +238,19 @@ main:focus, main:focus-visible { outline: none; }
   margin-bottom: 1.75rem;
 }
 
+/* Schmale, große Überschrift wie ein Schild im Treppenhaus; der Strich zeigt die Bereichsfarbe
+   und passt damit zum markierten Reiter. */
 .page-head h1 {
   margin: 0;
-  font-size: 2rem;
-  line-height: 1.15;
-  letter-spacing: -.02em;
+  font-size: clamp(2.1rem, 1.6rem + 2vw, 2.75rem);
+  line-height: 1.05;
 }
 .page-head h1::after {
   content: "";
   display: block;
-  width: 2.5rem;
-  height: 6px;
-  margin-top: .6rem;
+  width: 2.25rem;
+  height: 4px;
+  margin-top: .55rem;
   border-radius: 2px;
   background: var(--sec, var(--ink));
 }
@@ -230,16 +282,17 @@ main:focus, main:focus-visible { outline: none; }
   padding-top: .15rem;
 }
 .news-date .day {
-  font-size: 1.6rem;
-  font-weight: 800;
+  font-family: var(--font-sign);
+  font-size: 1.85rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.news-date .month { font-size: .8rem; color: var(--muted); }
+.news-date .month { font-size: .9rem; color: var(--muted); }
 
 .news-item h2 {
   margin: 0 0 .25rem;
-  font-size: 1.15rem;
-  line-height: 1.3;
+  font-size: 1.4rem;
+  line-height: 1.15;
 }
 .news-item:hover h2 { text-decoration: underline; text-underline-offset: 3px; }
 .news-item p { margin: 0; color: var(--muted); }
@@ -301,8 +354,8 @@ input[type="checkbox"] { width: auto; padding: 0; accent-color: var(--sec, var(-
   border-radius: var(--radius);
   background: var(--ink);
   color: var(--paper);
-  font: inherit;
-  font-weight: 600;
+  font: 600 1.05rem/1.2 var(--font-sign);
+  letter-spacing: .01em;
   text-decoration: none;
   cursor: pointer;
 }
@@ -357,7 +410,7 @@ input[type="checkbox"] { width: auto; padding: 0; accent-color: var(--sec, var(-
     min-height: 0;
     padding: .6rem .75rem;
     border-radius: var(--radius);
-    font-size: 1rem;
+    font-size: 1.1rem;
   }
   .tab-mark { width: 6px; height: 1.1rem; }
   .tabs a[aria-current="page"] { background: var(--surface); }
@@ -403,9 +456,9 @@ input[type="checkbox"] { width: auto; padding: 0; accent-color: var(--sec, var(-
 .cal-day { margin-bottom: 1.25rem; }
 .cal-day h2 {
   margin: 0 0 .25rem;
-  padding-bottom: .35rem;
+  padding-bottom: .3rem;
   border-bottom: 1px solid var(--line);
-  font-size: 1rem;
+  font-size: 1.2rem;
 }
 .cal-entries { list-style: none; margin: 0; padding: 0; }
 .cal-row {
@@ -418,15 +471,19 @@ input[type="checkbox"] { width: auto; padding: 0; accent-color: var(--sec, var(-
 .cal-row .cal-mark, .cal-row .waste-dot { margin-top: .35rem; }
 a.cal-row:hover strong, a.cal-row:hover > span:last-child { text-decoration: underline; text-underline-offset: 3px; }
 .cal-sub { display: block; color: var(--muted); font-size: .95rem; }
-.cal-sub .sep { opacity: .5; padding: 0 .35rem; }
 
-/* Monatsraster */
+/* Monatsraster; am breiten Bildschirm steht der gewählte Tag rechts daneben */
+.cal-month-layout { display: grid; gap: 1.5rem; }
+@media (min-width: 1100px) {
+  .cal-month-layout { grid-template-columns: minmax(0, 1.7fr) minmax(15rem, 1fr); align-items: start; }
+  .cal-month-layout #cal-selected { padding-top: 3rem; }
+}
 .cal-month-nav { display: flex; align-items: center; gap: .75rem; margin-bottom: .75rem; }
-.cal-month-nav h2 { margin: 0; font-size: 1.25rem; min-width: 10rem; text-align: center; }
+.cal-month-nav h2 { margin: 0; font-size: 1.6rem; min-width: 11rem; text-align: center; }
 .cal-today-link { margin-left: auto; color: var(--muted); }
 
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 1.5rem; }
-.cal-weekday { padding: .25rem 0; text-align: center; color: var(--muted); font-size: .8rem; font-weight: 600; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.cal-weekday { padding: .25rem 0; text-align: center; color: var(--muted); font: 600 .95rem/1.4 var(--font-sign); }
 .cal-cell {
   display: flex;
   flex-direction: column;
@@ -442,9 +499,14 @@ a.cal-row:hover strong, a.cal-row:hover > span:last-child { text-decoration: und
   cursor: pointer;
 }
 .cal-cell.outside { opacity: .45; }
-.cal-cell.today .cal-num { background: var(--c-events); color: #fff; border-radius: 999px; padding: 0 .4rem; }
+/* var(--surface) statt Weiß: im Dunkelmodus ist das Grün hell, dort braucht die Zahl dunkle Schrift */
+.cal-cell.today .cal-num { background: var(--c-events); color: var(--surface); border-radius: 999px; padding: 0 .4rem; }
 .cal-cell[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
-.cal-num { font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.4; }
+.cal-num { font: 700 1.1rem/1.35 var(--font-sign); font-variant-numeric: tabular-nums; }
+/* Steht hinter der Grundregel .cal-cell, damit die größere Höhe gewinnt */
+@media (min-width: 1100px) {
+  .cal-cell { min-height: 4.6rem; }
+}
 .cal-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
 .cal-dot { display: inline-flex; }
 /* Gefilterte Einträge: eigenes display oben würde das hidden-Attribut sonst überstimmen */
@@ -500,12 +562,9 @@ select {
 
 .contact-group { margin-bottom: 2rem; }
 .contact-group h2 {
-  margin: 0 0 .5rem;
-  font-size: .85rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--muted);
+  margin: 0 0 .4rem;
+  font-size: 1.3rem;
+  color: var(--c-contacts);
 }
 
 .contact-list {
@@ -523,7 +582,7 @@ select {
 }
 .contact p { margin: 0; }
 .contact-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem; }
-.contact h3 { margin: 0; font-size: 1.1rem; line-height: 1.3; }
+.contact h3 { margin: 0; font-size: 1.25rem; line-height: 1.25; }
 /* Telefonnummern groß genug, um sie auf dem Handy sicher anzutippen */
 .contact-lines { line-height: 1.9; }
 .contact-lines a { overflow-wrap: anywhere; }
@@ -548,7 +607,8 @@ select {
   border-radius: 999px;
   background: var(--surface);
   color: var(--ink);
-  font: inherit;
+  font: 600 1rem/1.2 var(--font-sign);
+  letter-spacing: .01em;
   cursor: pointer;
 }
 .filter[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 600; }
@@ -603,7 +663,7 @@ select {
   box-shadow: 0 1px 2px rgba(0, 0, 0, .35);
 }
 
-.note h2 { margin: 0; font-size: 1.15rem; line-height: 1.3; overflow-wrap: anywhere; }
+.note h2 { margin: 0; font-size: 1.35rem; line-height: 1.15; overflow-wrap: anywhere; }
 .note p { margin: 0; }
 .note-body p + p { margin-top: .6em; }
 .note-body { overflow-wrap: anywhere; }
@@ -614,16 +674,14 @@ select {
 
 .note-kind {
   justify-self: start;
-  padding: .05rem .55rem;
+  padding: .05rem .6rem;
   border-radius: 999px;
   color: #FFFFFF;
-  font-size: .78rem;
-  font-weight: 700;
-  letter-spacing: .05em;
-  text-transform: uppercase;
+  font: 700 .95rem/1.4 var(--font-sign);
+  letter-spacing: .02em;
 }
-.kind-SUCHE   { background: #1F5FA8; }
-.kind-BIETE   { background: #2E7D4F; }
+.kind-SUCHE   { background: #1F3B73; }
+.kind-BIETE   { background: #2F6B4F; }
 .kind-TAUSCHE { background: #8A5A2B; }
 
 /* Auswahl der Art als große, gut antippbare Felder */
@@ -708,7 +766,7 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; font-weight: 600; }
 
 /* Eigene abgelaufene Aushänge unter dem Brett */
 .expired { margin-top: 2.25rem; }
-.expired h2 { margin: 0 0 .25rem; font-size: 1.15rem; }
+.expired h2 { margin: 0 0 .25rem; font-size: 1.4rem; }
 .expired > p { margin: 0 0 .75rem; }
 .expired-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
 .expired-list li {
@@ -743,7 +801,7 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; font-weight: 600; }
 
 .account-section { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
 .account-section:first-of-type { margin-top: 1rem; }
-.account-section h2 { margin: 0 0 .75rem; font-size: 1.2rem; }
+.account-section h2 { margin: 0 0 .75rem; font-size: 1.45rem; }
 .danger-zone h2 { color: var(--danger); }
 textarea.short-text { min-height: 7rem; }
 
@@ -788,7 +846,7 @@ code.secret { padding: .05rem .35rem; border-radius: 4px; background: var(--pape
 }
 .slip:first-child { border-top: 2px dashed var(--line); }
 .slip p, .slip ol { margin: 0 0 .6rem; }
-.slip-brand { font-weight: 800; font-size: 1.15rem; }
+.slip-brand { font: 700 1.35rem/1.2 var(--font-sign); }
 .slip-for { font-size: 1.05rem; }
 .slip-code { display: inline-block; padding: .1rem .5rem; border: 1px solid currentColor; border-radius: 4px; font-size: 1.25rem; font-weight: 700; }
 .slip-note { font-size: .9rem; color: var(--muted); }
@@ -807,6 +865,15 @@ code.secret { padding: .05rem .35rem; border-radius: 4px; background: var(--pape
    --ink fast weiß und würde grell aus der Seite stechen. Stattdessen ein dunkler Ton in der
    Bereichsfarbe (--sec): im Kalender grünlich, am Brett korkfarben. Steht am Dateiende, damit es
    die Grundregeln oben überschreibt. */
+/* Ausgewählte Chips und Umschalter: in beiden Modi nur zart getönt. Eine Reihe fast schwarzer
+   Pillen wirkte im hellen Modus zu schwer, und der dunkle Restmüll-Punkt verschwand darauf. */
+.filter[aria-pressed="true"],
+.segmented a[aria-current="page"] {
+  background: color-mix(in srgb, var(--sec, var(--muted)) 16%, var(--surface));
+  border-color: color-mix(in srgb, var(--sec, var(--muted)) 60%, var(--surface));
+  color: var(--ink);
+}
+
 @media (prefers-color-scheme: dark) {
   .btn:not(.secondary):not(.danger),
   .filter[aria-pressed="true"],
