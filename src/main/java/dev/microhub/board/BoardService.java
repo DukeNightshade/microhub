@@ -74,6 +74,7 @@ public class BoardService {
                 blankToNull(request.contact()),
                 currentUser(username),
                 expiresAt(request));
+        post.setPrice(request.priceCents(), request.priceType());
         return BoardItem.from(boardPostRepository.save(post), true, Instant.now());
     }
 
@@ -88,6 +89,7 @@ public class BoardService {
         Instant now = Instant.now();
         post.update(request.kind(), request.title().strip(), request.content().strip(),
                 blankToNull(request.contact()), expiresAt(request), now);
+        post.setPrice(request.priceCents(), request.priceType());
         return BoardItem.from(post, true, now);
     }
 

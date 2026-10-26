@@ -1282,6 +1282,29 @@ function loginPrompt(section) {
     <a class="btn" href="#/login">Anmelden</a>`, section);
 }
 
+const euro = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
+const euroWhole = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+
+/** „25 € VB“, „12,50 € Festpreis“ oder „Zu verschenken“; ganze Beträge ohne „,00“. */
+function priceLabel(post) {
+  if (post.priceCents === 0) return 'Zu verschenken';
+  const amount = post.priceCents % 100 === 0 ? euroWhole.format(post.priceCents / 100) : euro.format(post.priceCents / 100);
+  return `${amount} ${post.priceType === 'FEST' ? 'Festpreis' : 'VB'}`;
+}
+
+/** Eingabe wie „12,50“, „12.5“ oder „25 €“ → Cent; null, wenn es keine gültige Zahl ist. */
+function inputToCents(value) {
+  const cleaned = String(value).replace(/[€\s]/g, '').replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
+  return Math.round(Number(cleaned) * 100);
+}
+
+/** Cent → Wert fürs Eingabefeld: 2500 → „25“, 1250 → „12,50“. */
+function centsToInput(cents) {
+  if (cents == null) return '';
+  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2).replace('.', ',');
+}
+
 /** Telefonnummer oder E-Mail werden antippbar, alles andere (z. B. „Whg. 3, 2. OG“) bleibt Text. */
 function boardContactHtml(contact) {
   const value = contact.trim();
@@ -1455,6 +1478,7 @@ function boardCardHtml(post) {
       ${photo}
       <span class="note-kind kind-${escapeHtml(post.kind)}">${escapeHtml(post.label)}</span>
       <h2>${escapeHtml(post.title)}</h2>
+      ${post.kind === 'BIETE' && post.priceCents != null ? `<p class="note-price">${escapeHtml(priceLabel(post))}</p>` : ''}
       <div class="note-body">${paragraphs(post.content)}</div>
       ${post.contact ? `<p class="note-contact"><span class="muted">Kontakt:</span> ${boardContactHtml(post.contact)}</p>` : ''}
       <p class="note-meta">
@@ -1553,7 +1577,7 @@ async function viewBoardEditor(id) {
   const options = await loadBoardOptions();
   const post = id
     ? await api(`/api/board/${encodeURIComponent(id)}`)
-    : { kind: options.kinds[0].value, title: '', content: '', contact: '', editable: true, photos: [] };
+    : { kind: options.kinds[0].value, title: '', content: '', contact: '', priceCents: null, priceType: 'VB', editable: true, photos: [] };
 
   if (!post.editable) {
     render(`${pageHead('brett', 'Aushang bearbeiten')}<p class="notice">Diesen Aushang können nur die Person, die ihn geschrieben hat, und Admins ändern.</p>`, 'brett');
@@ -1599,14 +1623,26 @@ async function viewBoardEditor(id) {
         <label for="title">Überschrift</label>
         <input id="title" name="title" maxlength="200" required value="${escapeHtml(post.title)}">
       </div>
+      <fieldset class="field price-fields" id="price-fields">
+        <legend>Preis</legend>
+        <span class="hint">0 € heißt „zu verschenken“.</span>
+        <div class="price-row">
+          <span class="price-input"><input id="price" name="price" inputmode="decimal" autocomplete="off"
+            placeholder="z. B. 25" value="${escapeHtml(centsToInput(post.priceCents))}" aria-label="Preis in Euro"><span aria-hidden="true">€</span></span>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="priceType" value="FEST" ${post.priceType === 'FEST' ? 'checked' : ''}><span>Festpreis</span></label>
+            <label class="choice"><input type="radio" name="priceType" value="VB" ${post.priceType !== 'FEST' ? 'checked' : ''}><span>VB</span></label>
+          </div>
+        </div>
+      </fieldset>
       <div class="field">
         <label for="content">Text</label>
         <textarea id="content" name="content" maxlength="5000" required>${escapeHtml(post.content)}</textarea>
       </div>
       <div class="field">
         <label for="contact">Kontakt</label>
-        <span class="hint">Optional. Wie man dich erreicht, zum Beispiel Telefonnummer, E-Mail oder „Whg. 3, 2. OG“. Sehen alle angemeldeten Mitglieder.</span>
-        <input id="contact" name="contact" maxlength="200" value="${escapeHtml(post.contact)}">
+        <span class="hint">Wie man dich erreicht, zum Beispiel Telefonnummer, E-Mail oder „Whg. 3, 2. OG“. Sehen alle angemeldeten Mitglieder.</span>
+        <input id="contact" name="contact" maxlength="200" required value="${escapeHtml(post.contact)}">
       </div>
       ${photoFieldHtml('Fotos')}
       <div class="field">
@@ -1625,6 +1661,20 @@ async function viewBoardEditor(id) {
 
   const photos = enablePhotoPicker({ existing: post.photos, max: options.maxPhotos, errorBox, place: 'an einen Aushang' });
 
+  // Preis nur bei „Biete“; bei 0 € (verschenken) braucht es kein Festpreis/VB.
+  const priceFields = document.getElementById('price-fields');
+  const priceInput = form.elements.price;
+  const updatePriceFields = () => {
+    const isOffer = form.elements.kind.value === 'BIETE';
+    priceFields.hidden = !isOffer;
+    priceInput.required = isOffer;
+    const free = inputToCents(priceInput.value) === 0;
+    priceFields.querySelector('.choices').hidden = free;
+  };
+  form.querySelector('.choices').addEventListener('change', updatePriceFields);
+  priceInput.addEventListener('input', updatePriceFields);
+  updatePriceFields();
+
   document.getElementById('delete')?.addEventListener('click', async () => {
     if (!confirm(`„${post.title}“ wirklich abnehmen? Der Aushang wird gelöscht.`)) return;
     await api(`/api/board/${post.id}`, { method: 'DELETE' });
@@ -1633,14 +1683,23 @@ async function viewBoardEditor(id) {
 
   form.addEventListener('submit', async (submitEvent) => {
     submitEvent.preventDefault();
+    const fields = form.elements;
+    const isOffer = fields.kind.value === 'BIETE';
+    const priceCents = isOffer ? inputToCents(fields.price.value) : null;
+    if (isOffer && priceCents === null) {
+      errorBox.innerHTML = '<p class="notice error">Bitte gib einen Preis in Euro ein, zum Beispiel „25“ oder „12,50“. 0 heißt „zu verschenken“.</p>';
+      fields.price.focus();
+      return;
+    }
     const button = form.querySelector('button[type="submit"]');
     button.disabled = true;
-    const fields = form.elements;
     const body = {
       kind: fields.kind.value,
       title: fields.title.value,
       content: fields.content.value,
       contact: fields.contact.value,
+      priceCents,
+      priceType: isOffer && priceCents > 0 ? fields.priceType.value : null,
       durationDays: Number(fields.durationDays.value),
     };
 
@@ -1651,7 +1710,7 @@ async function viewBoardEditor(id) {
         : await api('/api/board', { method: 'POST', body });
     } catch (error) {
       errorBox.innerHTML = error.status === 400
-        ? '<p class="notice error">Überschrift und Text müssen ausgefüllt sein.</p>'
+        ? '<p class="notice error">Überschrift, Text und Kontakt müssen ausgefüllt sein, bei „Biete“ auch der Preis.</p>'
         : error.status === 403 || error.status === 409
           ? `<p class="notice error">${escapeHtml(error.message)}</p>`
           : '<p class="notice error">Speichern hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';

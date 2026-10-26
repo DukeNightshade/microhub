@@ -852,6 +852,16 @@ select {
 .kind-BIETE   { background: #2F6B4F; }
 .kind-TAUSCHE { background: #8A5A2B; }
 
+/* Preis auf dem Zettel: kräftig, damit man ihn beim Überfliegen sieht */
+.note-price { margin: -.1rem 0 .1rem; font: 700 1.2rem/1.2 var(--font-sign); color: #2F6B4F; }
+
+/* Preisfeld im Formular (nur bei „Biete“). [hidden] muss gewinnen, weil .field/.choices eigenes display haben. */
+.price-fields[hidden], .price-fields .choices[hidden] { display: none; }
+.price-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; }
+.price-input { position: relative; display: inline-flex; align-items: center; }
+.price-input input { width: 9rem; padding-right: 2rem; }
+.price-input span { position: absolute; right: .8rem; color: var(--muted); pointer-events: none; }
+
 /* Auswahl der Art als große, gut antippbare Felder */
 fieldset.field { margin: 0; padding: 0; border: 0; min-width: 0; }
 fieldset.field legend { padding: 0; margin-bottom: .35rem; font-weight: 600; }

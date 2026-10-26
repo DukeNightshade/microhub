@@ -35,6 +35,15 @@ public class BoardPost {
     @Column(length = 200)
     private String contact;
 
+    /** Nur bei „Biete“: Preis in Cent, 0 heißt „zu verschenken“. */
+    @Column(name = "price_cents")
+    private Integer priceCents;
+
+    /** Nur bei „Biete“ mit einem Preis über 0: Festpreis oder Verhandlungsbasis. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "price_type", length = 10)
+    private PriceType priceType;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "author_id")
     private AppUser author;
@@ -85,6 +94,17 @@ public class BoardPost {
     }
 
     /**
+     * Setzt den Preis passend zur Art: Suche und Tausche haben nie einen Preis, „zu verschenken“
+     * (0 Cent) braucht keine Angabe zu Festpreis oder VB. So bleiben die Daten stimmig, auch
+     * wenn jemand die Art von „Biete“ auf „Suche“ ändert.
+     */
+    void setPrice(Integer cents, PriceType type) {
+        boolean hasPrice = kind == BoardKind.BIETE && cents != null;
+        this.priceCents = hasPrice ? cents : null;
+        this.priceType = hasPrice && cents > 0 ? type : null;
+    }
+
+    /**
      * Ändern und Löschen dürfen der Autor und Admins.
      * author.getId() lädt den Benutzer nicht nach – die ID kennt Hibernate schon aus author_id.
      */
@@ -126,6 +146,8 @@ public class BoardPost {
     public String getTitle() { return title; }
     public String getContent() { return content; }
     public String getContact() { return contact; }
+    public Integer getPriceCents() { return priceCents; }
+    public PriceType getPriceType() { return priceType; }
     public AppUser getAuthor() { return author; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getExpiresAt() { return expiresAt; }

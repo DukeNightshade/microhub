@@ -76,7 +76,7 @@ src/main/java/dev/microhub/
 └── push/        (geplant) Web Push, Abos, Scheduler
 src/main/resources/
 ├── application.yaml
-├── db/migration/V1__init.sql … V9__news_photo.sql
+├── db/migration/V1__init.sql … V10__board_price.sql
 └── static/      index.html, css/app.css, js/api.js, js/app.js,
                  fonts/ (WOFF2 + OFL-Lizenztexte, selbst ausgeliefert)
 ```
@@ -95,8 +95,8 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   `V4` `board_post.contact`, `V5` `board_post.revived` + Tabelle `board_photo`,
   `V6` Tabelle `invite_code` + `app_user.invite_code_id`/`must_change_password`,
   `V7` `app_user.apartment`/`blocked_at`, `invite_code.revoked_at`, `invite_code_id` entfernt,
-  `V8` `calendar_event.news_id` mit ON DELETE CASCADE, `V9` Tabelle `news_photo`);
-  die nächste Migration heißt `V10__…`.
+  `V8` `calendar_event.news_id` mit ON DELETE CASCADE, `V9` Tabelle `news_photo`,
+  `V10` `board_post.price_cents`/`price_type`); die nächste Migration heißt `V11__…`.
 - `open-in-view: false` → Lazy-Relationen nur innerhalb von `@Transactional` auflösen
   (oder `@EntityGraph` nutzen, siehe `NewsRepository`).
 - Text-Spalten (`TEXT`) in Entities mit `@Column(columnDefinition = "text")` mappen.
@@ -277,9 +277,15 @@ damit echte Nutzer starten können; PWA und Push danach.
    Standard 30; daraus wird `expires_at` berechnet, abgelaufene Aushänge werden nicht mehr
    angezeigt. Unter dem Aushang steht der **Anzeigename** (`display_name`), nicht der
    Benutzername. Gestaltung: **Zettel-Karten auf Kork** mit Filter „Alle · Suche · Biete ·
-   Tausche“ (filtert im Browser). Für Rückmeldungen gibt es ein **eigenes optionales Feld
-   „Kontakt“** (Migration V4) – bewusst nicht automatisch die E-Mail des Kontos (DSGVO).
-   Telefonnummern und E-Mail-Adressen darin werden antippbar.
+   Tausche“ (filtert im Browser). Für Rückmeldungen gibt es ein **eigenes Feld „Kontakt“**
+   (Migration V4) – bewusst nicht automatisch die E-Mail des Kontos (DSGVO). **Seit
+   26.10.2026 Pflicht** (freie Eingabe), damit jeder Aushang erreichbar ist; die
+   Kontaktaufnahme selbst läuft außerhalb von MicroHub. Telefonnummern und E-Mail-Adressen
+   darin werden antippbar.
+   **Preis nur bei „Biete“** (Migration V10, `price_cents` + `price_type` FEST/VB): Betrag in
+   Euro (Eingabe „25“ oder „12,50“), dazu Festpreis oder VB; **0 € = „Zu verschenken“**
+   (dann ohne Festpreis/VB). Bei Suche und Tausche wird ein Preis verworfen – auch wenn
+   jemand die Art nachträglich ändert (`BoardPost.setPrice`).
 5. **Fotos am Brett** (26.10.2026): **bis zu 3 Fotos** pro Aushang; das erste steht oben auf
    dem Zettel („+2 Fotos“), Antippen öffnet eine Großansicht. Fotos verkleinert schon der
    Browser (max. 1600 px, JPEG), der Server kodiert sie neu (entfernt GPS-Daten) und legt eine
