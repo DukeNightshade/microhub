@@ -493,7 +493,7 @@ async function calendarHeadHtml(view) {
     ${pageHead('kalender', 'Kalender', actions)}
     <div class="cal-toolbar">
       <nav class="segmented" aria-label="Ansicht">
-        <a href="#/kalender/monat" ${view === 'monat' ? 'aria-current="page"' : ''}>Monat</a>
+        <a href="#/kalender/monat" ${view === 'monat' ? 'aria-current="page"' : ''}>Kalender</a>
         <a href="#/kalender/liste" ${view === 'liste' ? 'aria-current="page"' : ''}>Liste</a>
       </nav>
       <div class="filters" role="group" aria-label="Was soll angezeigt werden?">${chips}</div>
