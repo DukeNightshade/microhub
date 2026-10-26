@@ -128,8 +128,7 @@ a { color: inherit; }
 /* ---------- Bereichsnavigation (Handy: unten, Desktop: links) ---------- */
 
 .tabs [data-section="news"]     { --sec: var(--c-news); }
-.tabs [data-section="termine"]  { --sec: var(--c-events); }
-.tabs [data-section="muell"]    { --sec: var(--c-waste); }
+.tabs [data-section="kalender"] { --sec: var(--c-events); }
 .tabs [data-section="kontakte"] { --sec: var(--c-contacts); }
 .tabs [data-section="brett"]    { --sec: var(--c-board); }
 
@@ -138,7 +137,7 @@ a { color: inherit; }
   inset: auto 0 0 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   background: var(--surface);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -206,17 +205,15 @@ main:focus, main:focus-visible { outline: none; }
 
 .loading, .muted { color: var(--muted); }
 
-/* Listen (News und Termine): Datum links, Inhalt rechts */
-.news-list,
-.event-list {
+/* News-Liste: Datum links, Inhalt rechts */
+.news-list {
   list-style: none;
   margin: 0;
   padding: 0;
   border-top: 1px solid var(--line);
 }
 
-.news-item,
-.event-item {
+.news-item {
   display: grid;
   grid-template-columns: 3.25rem 1fr;
   gap: 1rem;
@@ -225,39 +222,29 @@ main:focus, main:focus-visible { outline: none; }
   text-decoration: none;
 }
 
-.news-date,
-.event-date {
+.news-date {
   display: flex;
   flex-direction: column;
   align-items: center;
   line-height: 1.1;
   padding-top: .15rem;
 }
-.news-date .day,
-.event-date .day {
+.news-date .day {
   font-size: 1.6rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
-.news-date .month,
-.event-date .month { font-size: .8rem; color: var(--muted); }
+.news-date .month { font-size: .8rem; color: var(--muted); }
 
-.news-item h2,
-.event-item h2 {
+.news-item h2 {
   margin: 0 0 .25rem;
   font-size: 1.15rem;
   line-height: 1.3;
 }
-.news-item:hover h2,
-.event-item:hover h2 { text-decoration: underline; text-underline-offset: 3px; }
-.news-item p,
-.event-item p { margin: 0; color: var(--muted); }
+.news-item:hover h2 { text-decoration: underline; text-underline-offset: 3px; }
+.news-item p { margin: 0; color: var(--muted); }
 
-/* Zeile mit Uhrzeit und Ort unter dem Titel eines Termins */
-.event-when { margin: 0 0 .15rem; color: var(--muted); font-size: .95rem; }
-.event-when .sep { opacity: .5; padding: 0 .35rem; }
-
-/* Umschalter zwischen kommenden und vergangenen Terminen */
+/* Umschalter zwischen kommenden und vergangenen Einträgen */
 .list-switch { margin: -.5rem 0 1.25rem; }
 
 .more { margin-top: 1.5rem; text-align: center; }
@@ -382,48 +369,104 @@ input[type="checkbox"] { width: auto; padding: 0; accent-color: var(--sec, var(-
   main { margin: 0; padding: 2.25rem 2.5rem 4rem; }
 }
 
-/* ---------- Müllabfuhr ---------- */
+/* ---------- Kalender (Termine und Müllabfuhr) ---------- */
 
 /* Mehrere Schaltflächen in der Seitenüberschrift */
 .head-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 
-.waste-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid var(--line);
+.cal-toolbar { display: grid; gap: .9rem; margin: -.5rem 0 1.5rem; }
+.cal-toolbar .filters { margin: 0; }
+
+/* Umschalter Liste/Monat */
+.segmented { display: inline-flex; justify-self: start; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.segmented a { padding: .45rem 1.1rem; color: var(--muted); text-decoration: none; background: var(--surface); }
+.segmented a + a { border-left: 1px solid var(--line); }
+.segmented a[aria-current="page"] { background: var(--ink); color: var(--paper); font-weight: 600; }
+
+/* Filter-Chips mit dem Zeichen der Kategorie */
+.filter.chip { display: inline-flex; align-items: center; gap: .45rem; }
+.filter.chip[aria-pressed="false"] { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(128, 128, 128, .6); }
+.filter.chip[aria-pressed="false"] .cal-mark,
+.filter.chip[aria-pressed="false"] .waste-dot { opacity: .35; }
+
+/* Termine: grünes Quadrat – Müll: Punkt in Tonnenfarbe */
+.cal-mark {
+  flex: none;
+  display: inline-block;
+  width: .85rem;
+  height: .85rem;
+  border-radius: 2px;
+  background: var(--c-events);
 }
 
-.waste-row {
-  display: grid;
-  grid-template-columns: 3.25rem 1fr;
-  gap: 1rem;
-  align-items: center;
-  padding: .9rem 0;
+/* Liste nach Tagen */
+.cal-day { margin-bottom: 1.25rem; }
+.cal-day h2 {
+  margin: 0 0 .25rem;
+  padding-bottom: .35rem;
   border-bottom: 1px solid var(--line);
+  font-size: 1rem;
+}
+.cal-entries { list-style: none; margin: 0; padding: 0; }
+.cal-row {
+  display: flex;
+  align-items: flex-start;
+  gap: .7rem;
+  padding: .55rem 0;
   text-decoration: none;
 }
+.cal-row .cal-mark, .cal-row .waste-dot { margin-top: .35rem; }
+a.cal-row:hover strong, a.cal-row:hover > span:last-child { text-decoration: underline; text-underline-offset: 3px; }
+.cal-sub { display: block; color: var(--muted); font-size: .95rem; }
+.cal-sub .sep { opacity: .5; padding: 0 .35rem; }
 
-.waste-date {
+/* Monatsraster */
+.cal-month-nav { display: flex; align-items: center; gap: .75rem; margin-bottom: .75rem; }
+.cal-month-nav h2 { margin: 0; font-size: 1.25rem; min-width: 10rem; text-align: center; }
+.cal-today-link { margin-left: auto; color: var(--muted); }
+
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 1.5rem; }
+.cal-weekday { padding: .25rem 0; text-align: center; color: var(--muted); font-size: .8rem; font-weight: 600; }
+.cal-cell {
   display: flex;
   flex-direction: column;
   align-items: center;
-  line-height: 1.1;
+  gap: .25rem;
+  min-height: 3.6rem;
+  padding: .35rem .15rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
 }
-.waste-date .day { font-size: 1.6rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.waste-date .month { font-size: .8rem; color: var(--muted); }
+.cal-cell.outside { opacity: .45; }
+.cal-cell.today .cal-num { background: var(--c-events); color: #fff; border-radius: 999px; padding: 0 .4rem; }
+.cal-cell[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.cal-num { font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.4; }
+.cal-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
+.cal-dot { display: inline-flex; }
+/* Gefilterte Einträge: eigenes display oben würde das hidden-Attribut sonst überstimmen */
+.cal-dot[hidden], .cal-entry[hidden], .cal-day[hidden] { display: none; }
+.cal-dot .cal-mark, .cal-dot .waste-dot { width: .55rem; height: .55rem; }
 
-.waste-kind {
+/* Termin zu einem News-Beitrag: Hinweis in der Liste und Kasten im Beitrag */
+.news-item p.news-event { display: flex; align-items: center; gap: .4rem; margin-top: .3rem; font-size: .9rem; }
+.news-event .cal-mark { width: .65rem; height: .65rem; }
+.event-box {
   display: flex;
-  align-items: center;
-  gap: .55rem;
-  margin: 0;
-  font-weight: 700;
-  font-size: 1.05rem;
+  gap: .8rem;
+  margin: -.75rem 0 1.5rem;
+  padding: .85rem 1rem;
+  border-left: 4px solid var(--c-events);
+  background: var(--surface);
 }
-a.waste-row:hover .waste-kind { text-decoration: underline; text-underline-offset: 3px; }
-
-.waste-note { margin: .15rem 0 0; color: var(--muted); font-size: .95rem; }
+.event-box .cal-mark { margin-top: .35rem; }
+.event-box p { margin: 0 0 .2rem; }
+.event-fieldset { margin: 0; padding: 0; border: 0; display: grid; gap: 1.1rem; }
+#event-fields { display: grid; gap: 1.1rem; }
+#event-fields[hidden] { display: none; }
 
 /* Die Farben der Tonnen, damit man die Abfuhr auf einen Blick erkennt */
 .waste-dot {

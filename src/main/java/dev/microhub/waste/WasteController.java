@@ -33,11 +33,7 @@ public class WasteController {
         return wasteImportService.importIcs(file.getInputStream());
     }
 
-    @GetMapping
-    public WastePage list(@RequestParam(defaultValue = "0") int page,
-                          @RequestParam(defaultValue = "false") boolean vergangen) {
-        return wasteService.list(page, vergangen);
-    }
+    // Die Liste aller Abfuhren liefert jetzt der Kalender (/api/calendar), zusammen mit den Terminen.
 
     /** Die Abfallarten mit Beschriftung, für die Auswahlliste im Formular. */
     @GetMapping("/types")

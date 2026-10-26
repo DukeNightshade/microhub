@@ -38,7 +38,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**", "/actuator/health").permitAll()
 
                 // Gastzugriff: nur lesen
-                .requestMatchers(HttpMethod.GET, "/api/news/**", "/api/events/**", "/api/waste/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/news/**", "/api/events/**", "/api/waste/**",
+                        "/api/calendar/**").permitAll()
                 // Kontakte: Gäste sehen nur die öffentlichen, das filtert der ContactService
                 .requestMatchers(HttpMethod.GET, "/api/contacts/**").permitAll()
 

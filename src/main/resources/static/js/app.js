@@ -2,8 +2,7 @@ import { api, ApiError } from './api.js';
 
 const SECTIONS = {
   news:     { title: 'News',            color: '--c-news' },
-  termine:  { title: 'Termine',         color: '--c-events' },
-  muell:    { title: 'Müllabfuhr',      color: '--c-waste' },
+  kalender: { title: 'Kalender',        color: '--c-events' },
   kontakte: { title: 'Kontakte',        color: '--c-contacts' },
   brett:    { title: 'Schwarzes Brett', color: '--c-board' },
   // ohne eigenen Tab, erreichbar über die Kopfzeile
@@ -124,8 +123,14 @@ function viewLogin() {
 
 // ---------- News ----------
 
+/** Kurzer Termin-Hinweis für die News-Liste, z. B. „Termin: Sa, 31. Okt., 15:00 Uhr“. */
+const eventBadgeDate = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+
 function newsItemHtml(item) {
   const date = new Date(item.publishedAt);
+  const badge = item.event ? `
+    <p class="news-event"><span class="cal-mark" aria-hidden="true"></span>Termin:
+      ${escapeHtml(eventBadgeDate.format(new Date(item.event.startsAt)))}${item.event.allDay ? '' : `, ${timeOnly.format(new Date(item.event.startsAt))} Uhr`}</p>` : '';
   return `
     <li>
       <a class="news-item" href="#/news/${item.id}">
@@ -136,6 +141,7 @@ function newsItemHtml(item) {
         <div>
           <h2>${escapeHtml(item.title)}</h2>
           ${item.summary ? `<p>${escapeHtml(item.summary)}</p>` : ''}
+          ${badge}
         </div>
       </a>
     </li>`;
@@ -180,6 +186,15 @@ async function viewNewsDetail(id) {
       <p class="article-meta">
         ${fullDate.format(new Date(news.publishedAt))}${news.author ? `, von ${escapeHtml(news.author)}` : ''}${edited ? ' (bearbeitet)' : ''}
       </p>
+      ${news.event ? `
+        <div class="event-box">
+          <span class="cal-mark" aria-hidden="true"></span>
+          <div>
+            <p><strong>Termin:</strong> ${escapeHtml(eventWhenLong(news.event))}</p>
+            ${news.event.location ? `<p>${escapeHtml(news.event.location)}</p>` : ''}
+            <p><a href="#/kalender/monat/${isoDay(new Date(news.event.startsAt)).slice(0, 7)}">Im Kalender ansehen</a></p>
+          </div>
+        </div>` : ''}
       ${news.summary ? `<p class="article-summary">${escapeHtml(news.summary)}</p>` : ''}
       <div class="article-body">${paragraphs(news.content)}</div>
     </article>
@@ -190,7 +205,10 @@ async function viewNewsDetail(id) {
       </div>` : ''}`, 'news');
 
   document.getElementById('delete')?.addEventListener('click', async () => {
-    if (!confirm(`„${news.title}“ wirklich löschen?`)) return;
+    const question = news.event
+      ? `„${news.title}“ wirklich löschen? Der zugehörige Termin verschwindet auch aus dem Kalender.`
+      : `„${news.title}“ wirklich löschen?`;
+    if (!confirm(question)) return;
     await api(`/api/news/${news.id}`, { method: 'DELETE' });
     location.hash = '#/news';
   });
@@ -223,34 +241,63 @@ async function viewNewsEditor(id) {
         <span class="hint">Eine Leerzeile beginnt einen neuen Absatz.</span>
         <textarea id="content" name="content" required>${escapeHtml(news.content)}</textarea>
       </div>
+      <fieldset class="event-fieldset">
+        <div class="field check">
+          <input id="withEvent" type="checkbox" ${news.event ? 'checked' : ''}>
+          <label for="withEvent">Termin im Kalender eintragen</label>
+        </div>
+        <div id="event-fields" ${news.event ? '' : 'hidden'}>
+          <p class="hint">Der Termin bekommt den Titel dieses Beitrags und führt im Kalender hierher.</p>
+          ${eventFieldsHtml(news.event ?? { location: '', startsAt: null, endsAt: null, allDay: false })}
+        </div>
+      </fieldset>
       <div><button class="btn" type="submit">${id ? 'Änderungen speichern' : 'Veröffentlichen'}</button></div>
     </form>`, 'news');
 
   const form = document.getElementById('news-form');
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const button = form.querySelector('button');
+  const errorBox = document.getElementById('editor-error');
+  const withEvent = document.getElementById('withEvent');
+  const eventFields = document.getElementById('event-fields');
+  enableAllDayToggle(form);
+
+  withEvent.addEventListener('change', () => {
+    eventFields.hidden = !withEvent.checked;
+    form.elements.startsAt.required = withEvent.checked;
+  });
+  form.elements.startsAt.required = withEvent.checked;
+
+  form.addEventListener('submit', async (submitEvent) => {
+    submitEvent.preventDefault();
+    const fields = form.elements;
+    const event = withEvent.checked ? readEventFields(form) : null;
+    if (event?.endsAt && event.endsAt < event.startsAt) {
+      errorBox.innerHTML = '<p class="notice error">Das Ende des Termins darf nicht vor dem Beginn liegen.</p>';
+      return;
+    }
+    if (id && news.event && !event && !confirm('Der Termin wird aus dem Kalender entfernt. Fortfahren?')) return;
+
+    const button = form.querySelector('button[type="submit"]');
     button.disabled = true;
-    const body = Object.fromEntries(new FormData(form));
+    const body = { title: fields.title.value, summary: fields.summary.value, content: fields.content.value, event };
     try {
       const saved = id
         ? await api(`/api/news/${news.id}`, { method: 'PUT', body })
         : await api('/api/news', { method: 'POST', body });
       location.hash = `#/news/${saved.id}`;
     } catch (error) {
-      document.getElementById('editor-error').innerHTML = error.status === 400
-        ? '<p class="notice error">Titel und Text dürfen nicht leer sein.</p>'
+      errorBox.innerHTML = error.status === 400
+        ? `<p class="notice error">Titel und Text dürfen nicht leer sein${event ? ', und der Termin braucht einen Beginn' : ''}.</p>`
         : '<p class="notice error">Speichern hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
       button.disabled = false;
     }
   });
 }
 
-// ---------- Termine ----------
+// ---------- Kalender (Termine und Müllabfuhr) ----------
 
 const sameDay = (a, b) => a.toDateString() === b.toDateString();
 
-/** Volle Zeitangabe für die Detailansicht, in ganzen Worten. */
+/** Volle Zeitangabe für Detailansichten, in ganzen Worten. */
 function eventWhenLong(event) {
   const start = new Date(event.startsAt);
   const end = event.endsAt ? new Date(event.endsAt) : null;
@@ -266,7 +313,7 @@ function eventWhenLong(event) {
   return `${startTag}, ${timeOnly.format(start)} Uhr bis ${weekdayLong.format(end)}, ${fullDate.format(end)}, ${timeOnly.format(end)} Uhr`;
 }
 
-/** Kurze Zeitangabe für die Liste – das Datum steht dort schon links daneben. */
+/** Kurze Zeitangabe für Listen – der Tag steht dort schon als Überschrift. */
 function eventWhenShort(event) {
   const start = new Date(event.startsAt);
   const end = event.endsAt ? new Date(event.endsAt) : null;
@@ -276,87 +323,6 @@ function eventWhenShort(event) {
   }
   if (end && sameDay(start, end)) return `${timeOnly.format(start)} bis ${timeOnly.format(end)} Uhr`;
   return `${timeOnly.format(start)} Uhr`;
-}
-
-function eventItemHtml(item) {
-  const date = new Date(item.startsAt);
-  const locationHtml = item.location ? `<span class="sep">·</span>${escapeHtml(item.location)}` : '';
-  return `
-    <li>
-      <a class="event-item" href="#/termine/${item.id}">
-        <time class="event-date" datetime="${escapeHtml(item.startsAt)}">
-          <span class="day">${dayOnly.format(date)}</span>
-          <span class="month">${monthShort.format(date)}</span>
-        </time>
-        <div>
-          <h2>${escapeHtml(item.title)}</h2>
-          <p class="event-when">${escapeHtml(eventWhenShort(item))}${locationHtml}</p>
-        </div>
-      </a>
-    </li>`;
-}
-
-async function viewEventList(past) {
-  const action = isAdmin() ? '<a class="btn" href="#/termine/neu">Termin eintragen</a>' : '';
-  const title = past ? 'Vergangene Termine' : 'Termine';
-  const moreLabel = past ? 'Noch ältere Termine laden' : 'Spätere Termine laden';
-  const moreButton = `<button class="btn secondary" type="button">${moreLabel}</button>`;
-  const toggle = past
-    ? '<p class="list-switch"><a href="#/termine">Zu den kommenden Terminen</a></p>'
-    : '<p class="list-switch"><a href="#/termine/vergangen">Vergangene Termine ansehen</a></p>';
-  const query = past ? '&vergangen=true' : '';
-
-  let page = 0;
-  const data = await api(`/api/events?page=0${query}`);
-
-  if (data.items.length === 0) {
-    const emptyText = past
-      ? 'Es gibt noch keine vergangenen Termine.'
-      : `Zurzeit steht nichts an.${isAdmin() ? ' Trag den ersten Termin über „Termin eintragen“ ein.' : ''}`;
-    render(`${pageHead('termine', title, action)}${toggle}<p class="muted">${emptyText}</p>`, 'termine');
-    return;
-  }
-
-  render(`
-    ${pageHead('termine', title, action)}
-    ${toggle}
-    <ol class="event-list" id="event-list">${data.items.map(eventItemHtml).join('')}</ol>
-    <div class="more" id="more">${data.hasMore ? moreButton : ''}</div>`, 'termine');
-
-  const more = document.getElementById('more');
-  more.addEventListener('click', async (clickEvent) => {
-    if (clickEvent.target.tagName !== 'BUTTON') return;
-    clickEvent.target.disabled = true;
-    page += 1;
-    const next = await api(`/api/events?page=${page}${query}`);
-    document.getElementById('event-list').insertAdjacentHTML('beforeend', next.items.map(eventItemHtml).join(''));
-    more.innerHTML = next.hasMore ? moreButton : '';
-  });
-}
-
-async function viewEventDetail(id) {
-  const event = await api(`/api/events/${encodeURIComponent(id)}`);
-
-  render(`
-    <a class="back" href="#/termine">Alle Termine</a>
-    <article>
-      ${pageHead('termine', event.title)}
-      <p class="article-meta">
-        ${escapeHtml(eventWhenLong(event))}${event.location ? `<br>${escapeHtml(event.location)}` : ''}
-      </p>
-      ${event.description ? `<div class="article-body">${paragraphs(event.description)}</div>` : ''}
-    </article>
-    ${isAdmin() ? `
-      <div class="admin-actions">
-        <a class="btn secondary" href="#/termine/${event.id}/bearbeiten">Bearbeiten</a>
-        <button class="btn danger" type="button" id="delete">Löschen</button>
-      </div>` : ''}`, 'termine');
-
-  document.getElementById('delete')?.addEventListener('click', async () => {
-    if (!confirm(`„${event.title}“ wirklich löschen?`)) return;
-    await api(`/api/events/${event.id}`, { method: 'DELETE' });
-    location.hash = '#/termine';
-  });
 }
 
 /** ISO-Zeitstempel → Wert für <input type="date"> bzw. <input type="datetime-local"> (Ortszeit). */
@@ -375,80 +341,418 @@ function toInstant(value, allDay) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-async function viewEventEditor(id) {
-  if (!isAdmin()) {
-    render(`${pageHead('termine', 'Termin eintragen')}<p class="notice">Nur Admins können Termine eintragen und bearbeiten.</p>`, 'termine');
-    return;
-  }
-
-  const event = id
-    ? await api(`/api/events/${encodeURIComponent(id)}`)
-    : { title: '', description: '', location: '', startsAt: null, endsAt: null, allDay: false };
+/** Felder für Beginn, Ende, Ganztägig und Ort – im Termin-Formular und im News-Formular. */
+function eventFieldsHtml(event) {
   const type = event.allDay ? 'date' : 'datetime-local';
-
-  render(`
-    <a class="back" href="${id ? `#/termine/${event.id}` : '#/termine'}">Abbrechen</a>
-    ${pageHead('termine', id ? 'Termin bearbeiten' : 'Termin eintragen')}
-    <div id="editor-error"></div>
-    <form class="form" id="event-form">
+  return `
+    <div class="field">
+      <label for="location">Ort</label>
+      <span class="hint">Optional, zum Beispiel „Innenhof“ oder „Gemeindesaal“.</span>
+      <input id="location" name="location" maxlength="200" value="${escapeHtml(event.location)}">
+    </div>
+    <div class="field check">
+      <input id="allDay" name="allDay" type="checkbox" ${event.allDay ? 'checked' : ''}>
+      <label for="allDay">Ganztägig – ohne Uhrzeit</label>
+    </div>
+    <div class="field-row">
       <div class="field">
-        <label for="title">Titel</label>
-        <input id="title" name="title" maxlength="200" required value="${escapeHtml(event.title)}">
-      </div>
-      <div class="field">
-        <label for="location">Ort</label>
-        <span class="hint">Optional, zum Beispiel „Gemeindesaal“.</span>
-        <input id="location" name="location" maxlength="200" value="${escapeHtml(event.location)}">
-      </div>
-      <div class="field check">
-        <input id="allDay" name="allDay" type="checkbox" ${event.allDay ? 'checked' : ''}>
-        <label for="allDay">Ganztägig – ohne Uhrzeit</label>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="startsAt">Beginn</label>
-          <input id="startsAt" name="startsAt" type="${type}" required value="${toInputValue(event.startsAt, event.allDay)}">
-        </div>
-        <div class="field">
-          <label for="endsAt">Ende</label>
-          <span class="hint">Optional.</span>
-          <input id="endsAt" name="endsAt" type="${type}" value="${toInputValue(event.endsAt, event.allDay)}">
-        </div>
+        <label for="startsAt">Beginn</label>
+        <input id="startsAt" name="startsAt" type="${type}" value="${toInputValue(event.startsAt, event.allDay)}">
       </div>
       <div class="field">
-        <label for="description">Beschreibung</label>
-        <span class="hint">Optional. Eine Leerzeile beginnt einen neuen Absatz.</span>
-        <textarea id="description" name="description">${escapeHtml(event.description)}</textarea>
+        <label for="endsAt">Ende</label>
+        <span class="hint">Optional.</span>
+        <input id="endsAt" name="endsAt" type="${type}" value="${toInputValue(event.endsAt, event.allDay)}">
       </div>
-      <div><button class="btn" type="submit">${id ? 'Änderungen speichern' : 'Termin eintragen'}</button></div>
-    </form>`, 'termine');
+    </div>`;
+}
 
-  const form = document.getElementById('event-form');
-  const errorBox = document.getElementById('editor-error');
-
-  // Das Häkchen schaltet Beginn und Ende zwischen Datum und Datum+Uhrzeit um.
-  form.allDay.addEventListener('change', () => {
-    const isFullDay = form.allDay.checked;
-    [form.startsAt, form.endsAt].forEach((field) => {
+/** Das Häkchen „Ganztägig“ schaltet Beginn und Ende zwischen Datum und Datum+Uhrzeit um. */
+function enableAllDayToggle(form) {
+  form.elements.allDay.addEventListener('change', () => {
+    const isFullDay = form.elements.allDay.checked;
+    [form.elements.startsAt, form.elements.endsAt].forEach((field) => {
       const dateOnly = field.value.slice(0, 10);
       field.type = isFullDay ? 'date' : 'datetime-local';
       // Ohne Uhrzeit verwirft der Browser den Wert eines datetime-local-Feldes.
       field.value = dateOnly ? (isFullDay ? dateOnly : `${dateOnly}T09:00`) : '';
     });
   });
+}
+
+/** Liest die Termin-Felder aus; null, wenn der Beginn fehlt. */
+function readEventFields(form) {
+  const allDay = form.elements.allDay.checked;
+  return {
+    location: form.elements.location.value,
+    startsAt: toInstant(form.elements.startsAt.value, allDay),
+    endsAt: toInstant(form.elements.endsAt.value, allDay),
+    allDay,
+  };
+}
+
+const weekdayAndDate = new Intl.DateTimeFormat('de-DE', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+});
+const dayHeading = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+const monthTitle = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' });
+
+/** Die Abfallarten kommen aus der API, damit Beschriftung und Reihenfolge nur einmal gepflegt werden. */
+let wasteTypes = null;
+
+async function loadWasteTypes() {
+  if (!wasteTypes) wasteTypes = await api('/api/waste/types');
+  return wasteTypes;
+}
+
+/** Tag als „2026-10-31“ in Ortszeit – so liefert die API auch das Feld date. */
+function isoDay(date) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+const fromIsoDay = (value) => new Date(`${value}T00:00`);
+
+function addDays(date, days) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+// Merkt sich Ansicht und ausgeblendete Kategorien pro Browser. Ohne Speicher (privates Fenster)
+// funktioniert alles weiter, nur eben ohne Erinnerung.
+const CALENDAR_VIEW_KEY = 'microhub.calendarView';
+const CALENDAR_HIDDEN_KEY = 'microhub.calendarHidden';
+
+function readStored(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+}
+
+function writeStored(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* nicht schlimm */ }
+}
+
+/** Farbiges Zeichen pro Kategorie: Termine als Quadrat, Müll als Punkt in Tonnenfarbe. */
+function categoryMark(category) {
+  return category === 'EVENT'
+    ? '<span class="cal-mark" aria-hidden="true"></span>'
+    : `<span class="waste-dot wt-${escapeHtml(category)}" aria-hidden="true"></span>`;
+}
+
+function calendarEntryHtml(entry, admin) {
+  if (entry.type === 'EVENT') {
+    const href = entry.newsId ? `#/news/${entry.newsId}` : `#/kalender/termin/${entry.id}`;
+    const where = entry.location ? `<span class="sep">·</span>${escapeHtml(entry.location)}` : '';
+    return `
+      <li class="cal-entry" data-category="EVENT">
+        <a class="cal-row" href="${href}">
+          ${categoryMark('EVENT')}
+          <span><strong>${escapeHtml(entry.title)}</strong>
+            <span class="cal-sub">${escapeHtml(eventWhenShort(entry))}${where}</span></span>
+        </a>
+      </li>`;
+  }
+  const inner = `
+    ${categoryMark(entry.category)}
+    <span>${escapeHtml(entry.title)}${entry.note ? `<span class="cal-sub">${escapeHtml(entry.note)}</span>` : ''}</span>`;
+  // Admins kommen über die Zeile direkt ins Formular, alle anderen lesen nur.
+  return `
+    <li class="cal-entry" data-category="${escapeHtml(entry.category)}">
+      ${admin ? `<a class="cal-row" href="#/kalender/muell/${entry.id}/bearbeiten">${inner}</a>` : `<div class="cal-row">${inner}</div>`}
+    </li>`;
+}
+
+/** Einträge nach Tag gruppiert; die Reihenfolge der Tage kommt aus der übergebenen Liste. */
+function calendarDaysHtml(entries, admin) {
+  const days = new Map();
+  for (const entry of entries) {
+    if (!days.has(entry.date)) days.set(entry.date, []);
+    days.get(entry.date).push(entry);
+  }
+  const today = isoDay(new Date());
+  return [...days].map(([day, items]) => `
+    <section class="cal-day" data-day="${day}">
+      <h2>${day === today ? 'Heute, ' : ''}${escapeHtml(dayHeading.format(fromIsoDay(day)))}</h2>
+      <ul class="cal-entries">${items.map((entry) => calendarEntryHtml(entry, admin)).join('')}</ul>
+    </section>`).join('');
+}
+
+/** Kopf mit Admin-Knöpfen, Umschalter Liste/Monat und den Filter-Chips. */
+async function calendarHeadHtml(view) {
+  const types = await loadWasteTypes();
+  const hidden = new Set(readStored(CALENDAR_HIDDEN_KEY, []));
+  const actions = isAdmin() ? `
+    <div class="head-actions">
+      <a class="btn" href="#/kalender/termin/neu">Termin eintragen</a>
+      <a class="btn secondary" href="#/kalender/muell/neu">Abfuhr eintragen</a>
+      <a class="btn secondary" href="#/kalender/muell/import">Abfuhrtermine importieren</a>
+    </div>` : '';
+  const chips = [{ value: 'EVENT', label: 'Termine' }, ...types].map((type) => `
+    <button type="button" class="filter chip" data-category="${escapeHtml(type.value)}"
+            aria-pressed="${!hidden.has(type.value)}">${categoryMark(type.value)}${escapeHtml(type.label)}</button>`).join('');
+  return `
+    ${pageHead('kalender', 'Kalender', actions)}
+    <div class="cal-toolbar">
+      <nav class="segmented" aria-label="Ansicht">
+        <a href="#/kalender/liste" ${view === 'liste' ? 'aria-current="page"' : ''}>Liste</a>
+        <a href="#/kalender/monat" ${view === 'monat' ? 'aria-current="page"' : ''}>Monat</a>
+      </nav>
+      <div class="filters" role="group" aria-label="Was soll angezeigt werden?">${chips}</div>
+    </div>`;
+}
+
+/**
+ * Blendet ausgeschaltete Kategorien aus – in Listen, Tagesgruppen und Monatsraster.
+ * onChange läuft danach, z. B. um „Nichts gefunden“-Hinweise zu aktualisieren.
+ */
+function enableCalendarFilter(onChange = () => {}) {
+  const apply = () => {
+    const hidden = new Set(readStored(CALENDAR_HIDDEN_KEY, []));
+    document.querySelectorAll('.cal-entry, .cal-dot').forEach((el) => {
+      el.hidden = hidden.has(el.dataset.category);
+    });
+    document.querySelectorAll('.cal-day').forEach((day) => {
+      day.hidden = !day.querySelector('.cal-entry:not([hidden])');
+    });
+    document.querySelectorAll('.filter.chip').forEach((chip) => {
+      chip.setAttribute('aria-pressed', String(!hidden.has(chip.dataset.category)));
+    });
+    onChange();
+  };
+
+  document.querySelector('.filters').addEventListener('click', (clickEvent) => {
+    const chip = clickEvent.target.closest('.filter.chip');
+    if (!chip) return;
+    const hidden = new Set(readStored(CALENDAR_HIDDEN_KEY, []));
+    if (hidden.has(chip.dataset.category)) hidden.delete(chip.dataset.category);
+    else hidden.add(chip.dataset.category);
+    writeStored(CALENDAR_HIDDEN_KEY, [...hidden]);
+    apply();
+  });
+  apply();
+  return apply;
+}
+
+/** Ohne Angabe öffnet der Reiter die zuletzt benutzte Ansicht. */
+function viewCalendar() {
+  location.replace(readStored(CALENDAR_VIEW_KEY, 'liste') === 'monat' ? '#/kalender/monat' : '#/kalender/liste');
+}
+
+/** Liste nach Tagen: kommend (vorwärts) oder vergangen (rückwärts), jeweils in 8-Wochen-Schritten. */
+async function viewCalendarList(past) {
+  writeStored(CALENDAR_VIEW_KEY, 'liste');
+  const admin = isAdmin();
+  const CHUNK = 56;
+  const today = new Date();
+  let from = past ? addDays(today, -CHUNK) : today;
+  let to = past ? addDays(today, -1) : addDays(today, CHUNK - 1);
+
+  const load = async () => {
+    const entries = await api(`/api/calendar?from=${isoDay(from)}&to=${isoDay(to)}`);
+    return past ? entries.reverse() : entries;
+  };
+
+  const toggle = past
+    ? '<p class="list-switch"><a href="#/kalender/liste">Zu den kommenden Einträgen</a></p>'
+    : '<p class="list-switch"><a href="#/kalender/vergangen">Vergangene Einträge ansehen</a></p>';
+  const moreLabel = past ? 'Ältere Einträge laden' : 'Spätere Einträge laden';
+
+  const head = await calendarHeadHtml('liste');
+  const first = await load();
+  render(`
+    ${head}
+    ${toggle}
+    <p class="muted" id="cal-empty" hidden></p>
+    <div id="cal-list">${calendarDaysHtml(first, admin)}</div>
+    <div class="more"><button class="btn secondary" type="button" id="more">${moreLabel}</button></div>`, 'kalender');
+
+  const updateEmpty = () => {
+    const anyVisible = document.querySelector('#cal-list .cal-entry:not([hidden])');
+    const box = document.getElementById('cal-empty');
+    box.hidden = Boolean(anyVisible);
+    box.textContent = past
+      ? 'In den letzten Wochen gab es dazu keine Einträge.'
+      : 'In den nächsten Wochen steht dazu nichts an.';
+  };
+  const applyFilter = enableCalendarFilter(updateEmpty);
+
+  document.getElementById('more').addEventListener('click', async (clickEvent) => {
+    const button = clickEvent.target;
+    button.disabled = true;
+    if (past) {
+      to = addDays(from, -1);
+      from = addDays(to, -(CHUNK - 1));
+    } else {
+      from = addDays(to, 1);
+      to = addDays(from, CHUNK - 1);
+    }
+    const next = await load();
+    document.getElementById('cal-list').insertAdjacentHTML('beforeend', calendarDaysHtml(next, admin));
+    applyFilter();
+    button.disabled = false;
+  });
+}
+
+/** Monatsraster Mo–So mit farbigen Zeichen; ein Klick auf einen Tag zeigt dessen Einträge darunter. */
+async function viewCalendarMonth(yearMonth) {
+  writeStored(CALENDAR_VIEW_KEY, 'monat');
+  const admin = isAdmin();
+  const now = new Date();
+  const [year, month] = /^\d{4}-\d{2}$/.test(yearMonth ?? '')
+    ? yearMonth.split('-').map(Number)
+    : [now.getFullYear(), now.getMonth() + 1];
+  const firstOfMonth = new Date(year, month - 1, 1);
+  const lastOfMonth = new Date(year, month, 0);
+  // Das Raster beginnt am Montag vor dem Ersten und endet am Sonntag nach dem Letzten.
+  const gridStart = addDays(firstOfMonth, -((firstOfMonth.getDay() + 6) % 7));
+  const gridEnd = addDays(lastOfMonth, (7 - lastOfMonth.getDay()) % 7);
+  const ym = (date) => isoDay(date).slice(0, 7);
+
+  const [head, entries] = await Promise.all([
+    calendarHeadHtml('monat'),
+    api(`/api/calendar?from=${isoDay(gridStart)}&to=${isoDay(gridEnd)}`),
+  ]);
+
+  const byDay = new Map();
+  for (const entry of entries) {
+    if (!byDay.has(entry.date)) byDay.set(entry.date, []);
+    byDay.get(entry.date).push(entry);
+  }
+
+  const todayIso = isoDay(now);
+  let selected = todayIso >= isoDay(firstOfMonth) && todayIso <= isoDay(lastOfMonth) ? todayIso : isoDay(firstOfMonth);
+
+  const cells = [];
+  for (let day = gridStart; day <= gridEnd; day = addDays(day, 1)) {
+    const iso = isoDay(day);
+    const items = byDay.get(iso) ?? [];
+    const dots = items.map((entry) =>
+      `<span class="cal-dot" data-category="${escapeHtml(entry.category)}">${categoryMark(entry.category)}</span>`).join('');
+    const classes = ['cal-cell', day.getMonth() !== month - 1 ? 'outside' : '', iso === todayIso ? 'today' : ''].join(' ');
+    cells.push(`
+      <button type="button" class="${classes}" data-day="${iso}" aria-pressed="${iso === selected}"
+              aria-label="${escapeHtml(weekdayAndDate.format(day))}${items.length ? `, ${items.length} Einträge` : ''}">
+        <span class="cal-num">${day.getDate()}</span>
+        <span class="cal-dots">${dots}</span>
+      </button>`);
+  }
+
+  render(`
+    ${head}
+    <div class="cal-month-nav">
+      <a class="btn small secondary" href="#/kalender/monat/${ym(new Date(year, month - 2, 1))}" aria-label="Vorheriger Monat">‹</a>
+      <h2>${escapeHtml(monthTitle.format(firstOfMonth))}</h2>
+      <a class="btn small secondary" href="#/kalender/monat/${ym(new Date(year, month, 1))}" aria-label="Nächster Monat">›</a>
+      ${ym(now) !== ym(firstOfMonth) ? '<a class="cal-today-link" href="#/kalender/monat">Heute</a>' : ''}
+    </div>
+    <div class="cal-grid" role="grid">
+      ${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((d) => `<span class="cal-weekday">${d}</span>`).join('')}
+      ${cells.join('')}
+    </div>
+    <div id="cal-selected"></div>`, 'kalender');
+
+  const panel = document.getElementById('cal-selected');
+  let applyFilter = () => {};
+  const showDay = () => {
+    const items = byDay.get(selected) ?? [];
+    panel.innerHTML = items.length
+      ? calendarDaysHtml(items, admin)
+      : `<section class="cal-day"><h2>${escapeHtml(dayHeading.format(fromIsoDay(selected)))}</h2></section>`;
+    panel.insertAdjacentHTML('beforeend', '<p class="muted" id="cal-empty" hidden>An diesem Tag steht nichts an.</p>');
+    applyFilter();
+  };
+
+  applyFilter = enableCalendarFilter(() => {
+    const day = panel.querySelector('.cal-day');
+    if (day) day.hidden = false; // die Überschrift des gewählten Tags bleibt immer sichtbar
+    const empty = document.getElementById('cal-empty');
+    if (empty) empty.hidden = Boolean(panel.querySelector('.cal-entry:not([hidden])'));
+  });
+
+  document.querySelector('.cal-grid').addEventListener('click', (clickEvent) => {
+    const cell = clickEvent.target.closest('.cal-cell');
+    if (!cell) return;
+    selected = cell.dataset.day;
+    document.querySelectorAll('.cal-cell').forEach((c) => c.setAttribute('aria-pressed', String(c === cell)));
+    showDay();
+  });
+  showDay();
+}
+
+/** Ein einzelner Termin ohne News-Beitrag; Termine mit Beitrag leiten zum Beitrag weiter. */
+async function viewEventDetail(id) {
+  const event = await api(`/api/events/${encodeURIComponent(id)}`);
+  if (event.newsId) {
+    location.replace(`#/news/${event.newsId}`);
+    return;
+  }
+
+  render(`
+    <a class="back" href="#/kalender">Zum Kalender</a>
+    <article>
+      ${pageHead('kalender', event.title)}
+      <p class="article-meta">
+        ${escapeHtml(eventWhenLong(event))}${event.location ? `<br>${escapeHtml(event.location)}` : ''}
+      </p>
+      ${event.description ? `<div class="article-body">${paragraphs(event.description)}</div>` : ''}
+    </article>
+    ${isAdmin() ? `
+      <div class="admin-actions">
+        <a class="btn secondary" href="#/kalender/termin/${event.id}/bearbeiten">Bearbeiten</a>
+        <button class="btn danger" type="button" id="delete">Löschen</button>
+      </div>` : ''}`, 'kalender');
+
+  document.getElementById('delete')?.addEventListener('click', async () => {
+    if (!confirm(`„${event.title}“ wirklich löschen?`)) return;
+    await api(`/api/events/${event.id}`, { method: 'DELETE' });
+    location.hash = '#/kalender';
+  });
+}
+
+async function viewEventEditor(id) {
+  if (!isAdmin()) {
+    render(`${pageHead('kalender', 'Termin eintragen')}<p class="notice">Nur Admins können Termine eintragen und bearbeiten.</p>`, 'kalender');
+    return;
+  }
+
+  const event = id
+    ? await api(`/api/events/${encodeURIComponent(id)}`)
+    : { title: '', description: '', location: '', startsAt: null, endsAt: null, allDay: false };
+  // Termine eines News-Beitrags werden nur dort gepflegt.
+  if (event.newsId) {
+    location.replace(`#/news/${event.newsId}/bearbeiten`);
+    return;
+  }
+
+  render(`
+    <a class="back" href="${id ? `#/kalender/termin/${event.id}` : '#/kalender'}">Abbrechen</a>
+    ${pageHead('kalender', id ? 'Termin bearbeiten' : 'Termin eintragen')}
+    <p class="muted form-intro">Für Termine mit ausführlicher Beschreibung kannst du auch einen
+      <a href="#/news/neu">News-Beitrag mit Termin</a> schreiben.</p>
+    <div id="editor-error"></div>
+    <form class="form" id="event-form">
+      <div class="field">
+        <label for="title">Titel</label>
+        <input id="title" name="title" maxlength="200" required value="${escapeHtml(event.title)}">
+      </div>
+      ${eventFieldsHtml(event)}
+      <div class="field">
+        <label for="description">Beschreibung</label>
+        <span class="hint">Optional. Eine Leerzeile beginnt einen neuen Absatz.</span>
+        <textarea id="description" name="description" class="short-text">${escapeHtml(event.description)}</textarea>
+      </div>
+      <div><button class="btn" type="submit">${id ? 'Änderungen speichern' : 'Termin eintragen'}</button></div>
+    </form>`, 'kalender');
+
+  const form = document.getElementById('event-form');
+  const errorBox = document.getElementById('editor-error');
+  form.elements.startsAt.required = true;
+  enableAllDayToggle(form);
 
   form.addEventListener('submit', async (submitEvent) => {
     submitEvent.preventDefault();
     const button = form.querySelector('button');
-    const allDay = form.allDay.checked;
-    const body = {
-      title: form.title.value,
-      description: form.description.value,
-      location: form.location.value,
-      startsAt: toInstant(form.startsAt.value, allDay),
-      endsAt: toInstant(form.endsAt.value, allDay),
-      allDay,
-    };
+    const body = { title: form.elements.title.value, description: form.elements.description.value, ...readEventFields(form) };
 
     if (body.endsAt && body.startsAt && body.endsAt < body.startsAt) {
       errorBox.innerHTML = '<p class="notice error">Das Ende darf nicht vor dem Beginn liegen.</p>';
@@ -460,7 +764,7 @@ async function viewEventEditor(id) {
       const saved = id
         ? await api(`/api/events/${event.id}`, { method: 'PUT', body })
         : await api('/api/events', { method: 'POST', body });
-      location.hash = `#/termine/${saved.id}`;
+      location.hash = `#/kalender/termin/${saved.id}`;
     } catch (error) {
       errorBox.innerHTML = error.status === 400
         ? '<p class="notice error">Titel und Beginn müssen ausgefüllt sein, und das Ende darf nicht vor dem Beginn liegen.</p>'
@@ -470,86 +774,9 @@ async function viewEventEditor(id) {
   });
 }
 
-// ---------- Müllabfuhr ----------
-
-const weekdayAndDate = new Intl.DateTimeFormat('de-DE', {
-  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-});
-
-/** Die Abfallarten kommen aus der API, damit Beschriftung und Reihenfolge nur einmal gepflegt werden. */
-let wasteTypes = null;
-
-async function loadWasteTypes() {
-  if (!wasteTypes) wasteTypes = await api('/api/waste/types');
-  return wasteTypes;
-}
-
-function wasteRowHtml(item, admin) {
-  const date = new Date(`${item.collectionDate}T00:00`);
-  const inner = `
-    <time class="waste-date" datetime="${escapeHtml(item.collectionDate)}">
-      <span class="day">${dayOnly.format(date)}</span>
-      <span class="month">${monthShort.format(date)}</span>
-    </time>
-    <div>
-      <p class="waste-kind">
-        <span class="waste-dot wt-${escapeHtml(item.wasteType)}" aria-hidden="true"></span>
-        ${escapeHtml(item.label)}
-      </p>
-      <p class="waste-note">${escapeHtml(weekdayAndDate.format(date))}${item.note ? ` · ${escapeHtml(item.note)}` : ''}</p>
-    </div>`;
-
-  // Admins kommen über die Zeile direkt ins Formular, Gäste lesen nur.
-  return admin
-    ? `<li><a class="waste-row" href="#/muell/${item.id}/bearbeiten">${inner}</a></li>`
-    : `<li><div class="waste-row">${inner}</div></li>`;
-}
-
-async function viewWasteList(past) {
-  const admin = isAdmin();
-  const action = admin
-    ? '<div class="head-actions"><a class="btn secondary" href="#/muell/import">Termine importieren</a><a class="btn" href="#/muell/neu">Abfuhr eintragen</a></div>'
-    : '';
-  const title = past ? 'Vergangene Abfuhren' : 'Müllabfuhr';
-  const moreLabel = past ? 'Noch ältere Abfuhren laden' : 'Spätere Abfuhren laden';
-  const moreButton = `<button class="btn secondary" type="button">${moreLabel}</button>`;
-  const toggle = past
-    ? '<p class="list-switch"><a href="#/muell">Zu den kommenden Abfuhren</a></p>'
-    : '<p class="list-switch"><a href="#/muell/vergangen">Vergangene Abfuhren ansehen</a></p>';
-  const query = past ? '&vergangen=true' : '';
-
-  let page = 0;
-  const data = await api(`/api/waste?page=0${query}`);
-
-  if (data.items.length === 0) {
-    const emptyText = past
-      ? 'Es gibt noch keine vergangenen Abfuhren.'
-      : `Es sind noch keine Abfuhrtermine eingetragen.${admin ? ' Trag den ersten über „Abfuhr eintragen“ ein.' : ''}`;
-    render(`${pageHead('muell', title, action)}${toggle}<p class="muted">${emptyText}</p>`, 'muell');
-    return;
-  }
-
-  render(`
-    ${pageHead('muell', title, action)}
-    ${toggle}
-    <ol class="waste-list" id="waste-list">${data.items.map((i) => wasteRowHtml(i, admin)).join('')}</ol>
-    <div class="more" id="more">${data.hasMore ? moreButton : ''}</div>`, 'muell');
-
-  const more = document.getElementById('more');
-  more.addEventListener('click', async (clickEvent) => {
-    if (clickEvent.target.tagName !== 'BUTTON') return;
-    clickEvent.target.disabled = true;
-    page += 1;
-    const next = await api(`/api/waste?page=${page}${query}`);
-    document.getElementById('waste-list')
-      .insertAdjacentHTML('beforeend', next.items.map((i) => wasteRowHtml(i, admin)).join(''));
-    more.innerHTML = next.hasMore ? moreButton : '';
-  });
-}
-
 async function viewWasteEditor(id) {
   if (!isAdmin()) {
-    render(`${pageHead('muell', 'Abfuhr eintragen')}<p class="notice">Nur Admins können Abfuhrtermine pflegen.</p>`, 'muell');
+    render(`${pageHead('kalender', 'Abfuhr eintragen')}<p class="notice">Nur Admins können Abfuhrtermine pflegen.</p>`, 'kalender');
     return;
   }
 
@@ -564,8 +791,8 @@ async function viewWasteEditor(id) {
     </option>`).join('');
 
   render(`
-    <a class="back" href="#/muell">Abbrechen</a>
-    ${pageHead('muell', id ? 'Abfuhr bearbeiten' : 'Abfuhr eintragen')}
+    <a class="back" href="#/kalender">Abbrechen</a>
+    ${pageHead('kalender', id ? 'Abfuhr bearbeiten' : 'Abfuhr eintragen')}
     <div id="editor-error"></div>
     <form class="form" id="waste-form">
       <div class="field">
@@ -585,7 +812,7 @@ async function viewWasteEditor(id) {
         <button class="btn" type="submit">${id ? 'Änderungen speichern' : 'Abfuhr eintragen'}</button>
         ${id ? '<button class="btn danger" type="button" id="delete">Löschen</button>' : ''}
       </div>
-    </form>`, 'muell');
+    </form>`, 'kalender');
 
   const form = document.getElementById('waste-form');
   const errorBox = document.getElementById('editor-error');
@@ -593,7 +820,7 @@ async function viewWasteEditor(id) {
   document.getElementById('delete')?.addEventListener('click', async () => {
     if (!confirm(`„${collection.label}“ am ${collection.collectionDate} wirklich löschen?`)) return;
     await api(`/api/waste/${collection.id}`, { method: 'DELETE' });
-    location.hash = '#/muell';
+    location.hash = '#/kalender';
   });
 
   form.addEventListener('submit', async (submitEvent) => {
@@ -601,15 +828,15 @@ async function viewWasteEditor(id) {
     const button = form.querySelector('button[type="submit"]');
     button.disabled = true;
     const body = {
-      wasteType: form.wasteType.value,
-      collectionDate: form.collectionDate.value,
-      note: form.note.value,
+      wasteType: form.elements.wasteType.value,
+      collectionDate: form.elements.collectionDate.value,
+      note: form.elements.note.value,
     };
 
     try {
       if (id) await api(`/api/waste/${collection.id}`, { method: 'PUT', body });
       else await api('/api/waste', { method: 'POST', body });
-      location.hash = '#/muell';
+      location.hash = '#/kalender';
     } catch (error) {
       errorBox.innerHTML = error.status === 409
         ? `<p class="notice error">${escapeHtml(error.message)}</p>`
@@ -623,13 +850,13 @@ async function viewWasteEditor(id) {
 
 async function viewWasteImport() {
   if (!isAdmin()) {
-    render(`${pageHead('muell', 'Termine importieren')}<p class="notice">Nur Admins können Abfuhrtermine importieren.</p>`, 'muell');
+    render(`${pageHead('kalender', 'Abfuhrtermine importieren')}<p class="notice">Nur Admins können Abfuhrtermine importieren.</p>`, 'kalender');
     return;
   }
 
   render(`
-    <a class="back" href="#/muell">Zurück zur Müllabfuhr</a>
-    ${pageHead('muell', 'Termine importieren')}
+    <a class="back" href="#/kalender">Zurück zum Kalender</a>
+    ${pageHead('kalender', 'Abfuhrtermine importieren')}
     <p class="muted import-intro">
       Beim Landkreis Vorpommern-Rügen findest du unter „Abfallkalender“ einen Export deiner
       Abfuhrtermine. Wähle dort deinen Ort, kreuze alle Abfallarten an, wähle das Format
@@ -644,7 +871,7 @@ async function viewWasteImport() {
         <input id="file" name="file" type="file" accept=".ics,text/calendar" required>
       </div>
       <div><button class="btn" type="submit">Datei einlesen</button></div>
-    </form>`, 'muell');
+    </form>`, 'kalender');
 
   const form = document.getElementById('import-form');
   const result = document.getElementById('import-result');
@@ -652,7 +879,7 @@ async function viewWasteImport() {
   form.addEventListener('submit', async (submitEvent) => {
     submitEvent.preventDefault();
     const button = form.querySelector('button');
-    const file = form.file.files[0];
+    const file = form.elements.file.files[0];
     if (!file) return;
 
     button.disabled = true;
@@ -675,7 +902,7 @@ async function viewWasteImport() {
             ${report.skipped} davon übersprungen, weil es sie schon gab.
           </p>
           ${unknown}
-          <p><a href="#/muell">Zur Übersicht</a></p>
+          <p><a href="#/kalender">Zum Kalender</a></p>
         </div>`;
       form.reset();
     } catch (error) {
@@ -1662,7 +1889,7 @@ function viewError(error, section) {
 // ---------- Router ----------
 
 async function route() {
-  const [section = 'news', first, second] = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+  const [section = 'news', first, second, third] = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   setActiveTab(section === 'login' ? null : section);
 
   // Mit einem Einmal-Passwort vom Admin geht es erst weiter, wenn ein eigenes gesetzt ist.
@@ -1682,16 +1909,18 @@ async function route() {
     else if (section === 'news' && first === 'neu') await viewNewsEditor();
     else if (section === 'news' && second === 'bearbeiten') await viewNewsEditor(first);
     else if (section === 'news') await viewNewsDetail(first);
-    else if (section === 'termine' && !first) await viewEventList(false);
-    else if (section === 'termine' && first === 'vergangen') await viewEventList(true);
-    else if (section === 'termine' && first === 'neu') await viewEventEditor();
-    else if (section === 'termine' && second === 'bearbeiten') await viewEventEditor(first);
-    else if (section === 'termine') await viewEventDetail(first);
-    else if (section === 'muell' && !first) await viewWasteList(false);
-    else if (section === 'muell' && first === 'vergangen') await viewWasteList(true);
-    else if (section === 'muell' && first === 'neu') await viewWasteEditor();
-    else if (section === 'muell' && first === 'import') await viewWasteImport();
-    else if (section === 'muell' && second === 'bearbeiten') await viewWasteEditor(first);
+    else if (section === 'kalender' && !first) viewCalendar();
+    else if (section === 'kalender' && first === 'liste') await viewCalendarList(false);
+    else if (section === 'kalender' && first === 'vergangen') await viewCalendarList(true);
+    else if (section === 'kalender' && first === 'monat') await viewCalendarMonth(second);
+    else if (section === 'kalender' && first === 'termin' && second === 'neu') await viewEventEditor();
+    else if (section === 'kalender' && first === 'termin' && third === 'bearbeiten') await viewEventEditor(second);
+    else if (section === 'kalender' && first === 'termin') await viewEventDetail(second);
+    else if (section === 'kalender' && first === 'muell' && second === 'neu') await viewWasteEditor();
+    else if (section === 'kalender' && first === 'muell' && second === 'import') await viewWasteImport();
+    else if (section === 'kalender' && first === 'muell' && third === 'bearbeiten') await viewWasteEditor(second);
+    // Alte Adressen (Lesezeichen) aus der Zeit vor dem gemeinsamen Kalender
+    else if (section === 'termine' || section === 'muell') location.replace('#/kalender');
     else if (section === 'kontakte' && !first) await viewContactList();
     else if (section === 'kontakte' && first === 'neu') await viewContactEditor();
     else if (section === 'kontakte' && second === 'bearbeiten') await viewContactEditor(first);

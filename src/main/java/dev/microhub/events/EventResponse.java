@@ -2,7 +2,7 @@ package dev.microhub.events;
 
 import java.time.Instant;
 
-/** Ein Termin mit Beschreibung, für die Detailansicht. */
+/** Ein Termin mit Beschreibung. newsId ist gesetzt, wenn die Details in einem News-Beitrag stehen. */
 public record EventResponse(
         Long id,
         String title,
@@ -11,7 +11,8 @@ public record EventResponse(
         Instant startsAt,
         Instant endsAt,
         boolean allDay,
-        String createdBy) {
+        String createdBy,
+        Long newsId) {
 
     static EventResponse from(CalendarEvent event) {
         return new EventResponse(
@@ -22,6 +23,7 @@ public record EventResponse(
                 event.getStartsAt(),
                 event.getEndsAt(),
                 event.isAllDay(),
-                event.getCreatedBy() == null ? null : event.getCreatedBy().getDisplayName());
+                event.getCreatedBy() == null ? null : event.getCreatedBy().getDisplayName(),
+                event.getNewsId());
     }
 }

@@ -19,12 +19,7 @@ public class EventController {
         this.eventService = eventService;
     }
 
-    @GetMapping
-    public EventPage list(@RequestParam(defaultValue = "0") int page,
-                          @RequestParam(defaultValue = "false") boolean vergangen) {
-        return eventService.list(page, vergangen);
-    }
-
+    /** Die Liste aller Termine liefert jetzt der Kalender (/api/calendar), zusammen mit der Müllabfuhr. */
     @GetMapping("/{id}")
     public EventResponse get(@PathVariable long id) {
         return eventService.get(id);

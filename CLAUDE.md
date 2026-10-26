@@ -59,11 +59,12 @@ src/main/java/dev/microhub/
 │                AccountCleanupJob
 ├── news/        News, NewsRepository, NewsService, NewsController,
 │                NewsRequest, NewsResponse, NewsListItem, NewsPage
+├── calendar/    CalendarController, CalendarEntry (Termine + Müll in einem Zeitraum)
 ├── events/      CalendarEvent, EventRepository, EventService, EventController,
-│                EventRequest, EventResponse, EventListItem, EventPage
+│                EventRequest, EventResponse, EventTiming, EventInfo
 ├── waste/       WasteCollection, WasteType, WasteRepository, WasteService,
 │                WasteController, WasteImportService, IcsParser, IcsEvent,
-│                WasteRequest, WasteItem, WastePage, WasteTypeOption, WasteImportResult
+│                WasteRequest, WasteItem, WasteTypeOption, WasteImportResult
 ├── contacts/    Contact, ContactRepository, ContactService, ContactController,
 │                ContactRequest, ContactItem
 ├── board/       BoardPost, BoardKind, BoardPostRepository, BoardService, BoardController,
@@ -72,7 +73,7 @@ src/main/java/dev/microhub/
 └── push/        (geplant) Web Push, Abos, Scheduler
 src/main/resources/
 ├── application.yaml
-├── db/migration/V1__init.sql … V7__cleanup_blocked_and_used.sql
+├── db/migration/V1__init.sql … V8__event_news_link.sql
 └── static/      index.html, css/app.css, js/api.js, js/app.js
 ```
 
@@ -89,8 +90,8 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   Ausgeführt sind `V1` bis `V6` (`V2` `contact.public`, `V3` `board_post.kind`,
   `V4` `board_post.contact`, `V5` `board_post.revived` + Tabelle `board_photo`,
   `V6` Tabelle `invite_code` + `app_user.invite_code_id`/`must_change_password`,
-  `V7` `app_user.apartment`/`blocked_at`, `invite_code.revoked_at`, `invite_code_id` entfernt);
-  die nächste Migration heißt `V8__…`.
+  `V7` `app_user.apartment`/`blocked_at`, `invite_code.revoked_at`, `invite_code_id` entfernt,
+  `V8` `calendar_event.news_id` mit ON DELETE CASCADE); die nächste Migration heißt `V9__…`.
 - `open-in-view: false` → Lazy-Relationen nur innerhalb von `@Transactional` auflösen
   (oder `@EntityGraph` nutzen, siehe `NewsRepository`).
 - Text-Spalten (`TEXT`) in Entities mit `@Column(columnDefinition = "text")` mappen.
@@ -104,7 +105,7 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
 - Nicht eingeloggt auf geschützter API → 401 (`HttpStatusEntryPoint`).
 - CSRF aktiv: Cookie `XSRF-TOKEN` (nicht HttpOnly), Frontend sendet Header `X-XSRF-TOKEN`
   (`static/js/api.js`). Nach Login/Logout `/api/auth/me` erneut aufrufen (Token rotiert).
-- Regeln: GET `/api/news|events|waste|contacts/**` öffentlich (bei Kontakten filtert der
+- Regeln: GET `/api/news|events|waste|calendar|contacts/**` öffentlich (bei Kontakten filtert der
   `ContactService`: Gäste nur `public = true`); `/api/board/**`, `/api/push/**` nur eingeloggt; Schreibzugriffe auf
   news/events/waste/contacts nur `ROLE_ADMIN`. Beim Brett prüft der `BoardService` je Aushang
   „Autor oder Admin“ (`BoardPost.canBeEditedBy`), sonst 403 (`ForbiddenException`).
@@ -128,10 +129,13 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
 - Single-Page-App mit Hash-Router in `static/js/app.js`. Routen:
   - `#/login`
   - News: `#/news`, `#/news/neu`, `#/news/:id`, `#/news/:id/bearbeiten`
-  - Termine: `#/termine`, `#/termine/vergangen`, `#/termine/neu`, `#/termine/:id`,
-    `#/termine/:id/bearbeiten`
-  - Müll: `#/muell`, `#/muell/vergangen`, `#/muell/neu`, `#/muell/import`,
-    `#/muell/:id/bearbeiten` (keine Detailseite – die Zeile führt Admins direkt ins Formular)
+  - Kalender (Termine + Müll): `#/kalender` (öffnet die zuletzt benutzte Ansicht),
+    `#/kalender/liste`, `#/kalender/vergangen`, `#/kalender/monat[/JJJJ-MM]`,
+    `#/kalender/termin/neu`, `#/kalender/termin/:id[/bearbeiten]`,
+    `#/kalender/muell/neu`, `#/kalender/muell/import`, `#/kalender/muell/:id/bearbeiten`.
+    Alte Adressen `#/termine…`/`#/muell…` leiten auf `#/kalender` um.
+  - Ansicht und Filter merkt sich der Browser (`localStorage`, `microhub.calendarView` /
+    `microhub.calendarHidden`), mit try/catch – ohne Speicher geht alles weiter.
   - Kontakte: `#/kontakte`, `#/kontakte/neu`, `#/kontakte/:id/bearbeiten` (keine Detailseite)
   - Brett: `#/brett`, `#/brett/neu`, `#/brett/:id/bearbeiten` (nur eingeloggt, keine Detailseite)
   - Konto: `#/registrieren`, `#/konto` (bei Einmal-Passwort leitet der Router jede Route hierher)
@@ -166,6 +170,8 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
       – committet in `92c48e5`, `mvnw compile` läuft fehlerfrei
 - [x] Termine-Modul (API) + Frontend (Liste, kommend/vergangen, Detail, Formular)
 - [x] Müllabfuhr (API, ICS-Import, Frontend) – Erinnerung per Push kommt später
+- [x] Kalender: Termine und Müllabfuhr in einem Reiter, Liste + Monat, Filter-Chips;
+      Termine können zu einem News-Beitrag gehören
 - [x] Kontakte (API + Frontend, öffentlich/intern getrennt)
 - [x] Schwarzes Brett (API + Frontend, Zettel-Karten mit Filter, bis zu 3 Fotos,
       einmal Neu-Aufhängen nach Ablauf, nächtlicher Aufräum-Job)
@@ -185,8 +191,8 @@ getestet. Damit sind alle fünf Bereiche fertig.
 **Zustand der lokalen Umgebung:**
 - Datenbank enthält die **185 echten Abfuhrtermine** aus den ICS-Dateien des Landkreises
   (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen. Flyway steht auf `V7`.
-- Benutzer `admin` plus **Testdaten des Entwicklers** (Konto „Melonie“ gesperrt, Codes „Test“
-  und „EG re“, ein Aushang mit Foto) – nicht ungefragt löschen.
+- Benutzer `admin`; keine News, Termine, Codes, Aushänge. Legt der Entwickler eigene
+  Testdaten an, diese nicht ungefragt löschen – eigene Testdaten erkennbar benennen (z. B. „TESTCAL“).
 - Der Entwickler startet die App oft selbst in IntelliJ (Port 8080, baut bei Änderungen
   automatisch neu). Eigene Testinstanzen auf **Port 8081** mit
   `--spring.docker.compose.lifecycle-management=start-only` starten und nur sie beenden.
@@ -249,13 +255,22 @@ damit echte Nutzer starten können; PWA und Push danach.
    **30 Tagen genau einmal** neu aufhängen (`revived`). Ein neu aufgehängter Aushang wird beim
    zweiten Ablauf gelöscht, ein nicht geretteter 30 Tage nach Ablauf – jeweils samt Fotos,
    durch `BoardCleanupJob` jede Nacht um 3:30 Uhr (Europe/Berlin).
+7. **Kalender statt „Termine“ + „Müllabfuhr“** (26.10.2026): ein Reiter „Kalender“ (Tab-Leiste
+   jetzt 4 Reiter) mit **Liste nach Tagen (Standard) und Monatsraster**, umschaltbar.
+   **Filter-Chips** für Termine und jede Abfallart, gefiltert wird im Browser.
+   **News-Beitrag mit Termin:** Im News-Formular blendet „Termin im Kalender eintragen“ Beginn,
+   Ende, Ganztägig und Ort ein. Der Termin übernimmt den News-Titel, führt im Kalender zum
+   Beitrag, der Beitrag zeigt den Termin mit Link zum Kalendermonat. Solche Termine werden nur
+   über den Beitrag gepflegt (`/api/events/{id}` antwortet sonst 409). **Beitrag löschen löscht
+   den Termin mit** (DB-Kaskade). **Einzelne Termine ohne News** bleiben möglich.
 
 ## Festlegungen Termine-Modul
 
-- Liste zeigt standardmäßig **kommende** Termine aufsteigend (der nächste zuerst);
-  vergangene Termine sind über einen Umschalter erreichbar (absteigend).
-- Grenze zwischen kommend und vergangen ist **der Beginn des heutigen Tages in
-  Europe/Berlin**, damit ein Termin von heute Vormittag nicht schon mittags verschwindet.
+- Die Kalender-Liste zeigt ab heute in 8-Wochen-Schritten („Spätere Einträge laden“);
+  vergangene Einträge rückwärts über einen Umschalter. `GET /api/calendar?from&to` liefert
+  Termine und Abfuhren gemischt (höchstens 400 Tage), sortiert nach Tag, Termine vor Müll.
+- Ein Termin erscheint an seinem **Starttag** (Europe/Berlin); mehrtägige Termine zeigen das
+  Ende in der Zeitangabe, nicht als eigene Einträge an jedem Tag.
 - Ganztägige Termine (`all_day = true`) werden als Mitternacht Europe/Berlin gespeichert;
   das Frontend zeigt dann nur das Datum, keine Uhrzeit.
 

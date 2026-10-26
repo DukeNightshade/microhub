@@ -39,8 +39,27 @@ public class CalendarEvent {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    /**
+     * Gehört der Termin zu einem News-Beitrag, stehen dort die Details; gepflegt wird er dann
+     * nur über den Beitrag. Bewusst nur die ID statt einer JPA-Beziehung: so kennt das
+     * Termine-Modul das News-Modul nicht, nur umgekehrt.
+     */
+    @Column(name = "news_id", updatable = false)
+    private Long newsId;
+
     protected CalendarEvent() {
         // für JPA
+    }
+
+    static CalendarEvent forNews(long newsId, String title, EventTiming timing, AppUser createdBy) {
+        CalendarEvent event = new CalendarEvent(title, null, timing.location(), timing.startsAt(),
+                timing.endsAt(), timing.allDay(), createdBy);
+        event.newsId = newsId;
+        return event;
+    }
+
+    void updateFromNews(String title, EventTiming timing) {
+        update(title, null, timing.location(), timing.startsAt(), timing.endsAt(), timing.allDay());
     }
 
     public CalendarEvent(String title, String description, String location,
@@ -73,4 +92,5 @@ public class CalendarEvent {
     public boolean isAllDay() { return allDay; }
     public AppUser getCreatedBy() { return createdBy; }
     public Instant getCreatedAt() { return createdAt; }
+    public Long getNewsId() { return newsId; }
 }

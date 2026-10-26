@@ -1,18 +1,20 @@
 package dev.microhub.events;
 
 import java.time.Instant;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Slice;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface EventRepository extends JpaRepository<CalendarEvent, Long> {
 
-    /** Kommende Termine: der nächste zuerst. Wer ihn eingetragen hat, wird mitgeladen. */
+    /** Für den Kalender: alle Termine, die im Zeitraum beginnen, der früheste zuerst. Ersteller mitladen. */
     @EntityGraph(attributePaths = "createdBy")
-    Slice<CalendarEvent> findByStartsAtGreaterThanEqualOrderByStartsAtAsc(Instant from, Pageable pageable);
+    List<CalendarEvent> findByStartsAtGreaterThanEqualAndStartsAtLessThanOrderByStartsAtAsc(Instant from, Instant to);
 
-    /** Vergangene Termine: der zuletzt gewesene zuerst. */
-    @EntityGraph(attributePaths = "createdBy")
-    Slice<CalendarEvent> findByStartsAtLessThanOrderByStartsAtDesc(Instant from, Pageable pageable);
+    Optional<CalendarEvent> findByNewsId(Long newsId);
+
+    /** Für die News-Liste: die Termine aller Beiträge einer Seite auf einmal. */
+    List<CalendarEvent> findByNewsIdIn(Collection<Long> newsIds);
 }

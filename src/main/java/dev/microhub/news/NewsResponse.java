@@ -1,8 +1,9 @@
 package dev.microhub.news;
 
+import dev.microhub.events.EventInfo;
 import java.time.Instant;
 
-/** Eine News mit vollem Text, für die Detailansicht. */
+/** Eine News mit vollem Text, für die Detailansicht; event ist der Termin im Kalender, falls vorhanden. */
 public record NewsResponse(
         Long id,
         String title,
@@ -10,9 +11,10 @@ public record NewsResponse(
         String content,
         String author,
         Instant publishedAt,
-        Instant updatedAt) {
+        Instant updatedAt,
+        EventInfo event) {
 
-    static NewsResponse from(News news) {
+    static NewsResponse from(News news, EventInfo event) {
         return new NewsResponse(
                 news.getId(),
                 news.getTitle(),
@@ -20,6 +22,7 @@ public record NewsResponse(
                 news.getContent(),
                 news.getAuthor() == null ? null : news.getAuthor().getDisplayName(),
                 news.getPublishedAt(),
-                news.getUpdatedAt());
+                news.getUpdatedAt(),
+                event);
     }
 }

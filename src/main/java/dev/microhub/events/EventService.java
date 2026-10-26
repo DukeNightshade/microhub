@@ -1,13 +1,17 @@
 package dev.microhub.events;
 
+import dev.microhub.common.ConflictException;
 import dev.microhub.common.NotFoundException;
 import dev.microhub.user.AppUser;
 import dev.microhub.user.AppUserRepository;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Slice;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class EventService {
 
-    private static final int PAGE_SIZE = 20;
     private static final ZoneId BERLIN = ZoneId.of("Europe/Berlin");
 
     private final EventRepository eventRepository;
@@ -26,18 +29,12 @@ public class EventService {
         this.userRepository = userRepository;
     }
 
-    public EventPage list(int page, boolean past) {
-        Instant todayStart = startOfToday();
-        PageRequest pageRequest = PageRequest.of(Math.max(page, 0), PAGE_SIZE);
-
-        Slice<CalendarEvent> slice = past
-                ? eventRepository.findByStartsAtLessThanOrderByStartsAtDesc(todayStart, pageRequest)
-                : eventRepository.findByStartsAtGreaterThanEqualOrderByStartsAtAsc(todayStart, pageRequest);
-
-        return new EventPage(
-                slice.map(EventListItem::from).getContent(),
-                slice.getNumber(),
-                slice.hasNext());
+    /** Alle Termine, die an einem der Tage (Europe/Berlin) beginnen; für den Kalender. */
+    public List<EventResponse> between(LocalDate from, LocalDate toInclusive) {
+        Instant start = from.atStartOfDay(BERLIN).toInstant();
+        Instant end = toInclusive.plusDays(1).atStartOfDay(BERLIN).toInstant();
+        return eventRepository.findByStartsAtGreaterThanEqualAndStartsAtLessThanOrderByStartsAtAsc(start, end)
+                .stream().map(EventResponse::from).toList();
     }
 
     public EventResponse get(long id) {
@@ -60,7 +57,7 @@ public class EventService {
 
     @Transactional
     public EventResponse update(long id, EventRequest request) {
-        CalendarEvent event = find(id);
+        CalendarEvent event = findStandalone(id);
         event.update(
                 request.title().strip(),
                 blankToNull(request.description()),
@@ -73,15 +70,49 @@ public class EventService {
 
     @Transactional
     public void delete(long id) {
-        eventRepository.delete(find(id));
+        eventRepository.delete(findStandalone(id));
     }
 
-    /**
-     * Grenze zwischen kommend und vergangen: der Beginn des heutigen Tages in Europe/Berlin.
-     * So verschwindet ein Termin von heute Vormittag nicht schon mittags aus der Liste.
-     */
-    private static Instant startOfToday() {
-        return LocalDate.now(BERLIN).atStartOfDay(BERLIN).toInstant();
+    // ---------- Termine zu News-Beiträgen (aufgerufen vom NewsService) ----------
+
+    public Optional<EventInfo> forNews(long newsId) {
+        return eventRepository.findByNewsId(newsId).map(EventInfo::from);
+    }
+
+    public Map<Long, EventInfo> forNews(Collection<Long> newsIds) {
+        if (newsIds.isEmpty()) return Map.of();
+        return eventRepository.findByNewsIdIn(newsIds).stream()
+                .collect(Collectors.toMap(CalendarEvent::getNewsId, EventInfo::from));
+    }
+
+    /** Legt den Termin eines Beitrags an oder passt ihn an; der Titel kommt immer aus der News. */
+    @Transactional
+    public EventInfo saveForNews(long newsId, String title, EventTiming timing, AppUser createdBy) {
+        EventTiming cleaned = new EventTiming(timing.startsAt(), timing.endsAt(), timing.allDay(),
+                blankToNull(timing.location()));
+        CalendarEvent event = eventRepository.findByNewsId(newsId)
+                .map(existing -> {
+                    existing.updateFromNews(title, cleaned);
+                    return existing;
+                })
+                .orElseGet(() -> eventRepository.save(CalendarEvent.forNews(newsId, title, cleaned, createdBy)));
+        return EventInfo.from(event);
+    }
+
+    @Transactional
+    public void removeForNews(long newsId) {
+        eventRepository.findByNewsId(newsId).ifPresent(eventRepository::delete);
+    }
+
+    // ---------- intern ----------
+
+    /** Termine eines News-Beitrags werden nur über den Beitrag gepflegt – sonst liefen beide auseinander. */
+    private CalendarEvent findStandalone(long id) {
+        CalendarEvent event = find(id);
+        if (event.getNewsId() != null) {
+            throw new ConflictException("Dieser Termin gehört zu einem News-Beitrag. Ändere ihn bitte dort.");
+        }
+        return event;
     }
 
     private CalendarEvent find(long id) {
