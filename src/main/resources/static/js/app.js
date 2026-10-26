@@ -4,7 +4,7 @@ const SECTIONS = {
   news:     { title: 'News',            color: '--c-news' },
   termine:  { title: 'Termine',         color: '--c-events' },
   muell:    { title: 'Müllabfuhr',      color: '--c-waste' },
-  kontakte: { title: 'Kontakte',        color: '--c-contacts', loginRequired: true },
+  kontakte: { title: 'Kontakte',        color: '--c-contacts' },
   brett:    { title: 'Schwarzes Brett', color: '--c-board',    loginRequired: true },
 };
 
@@ -679,6 +679,165 @@ async function viewWasteImport() {
   });
 }
 
+// ---------- Kontakte ----------
+
+const OTHER_CATEGORY = 'Weitere Kontakte';
+
+/** Gruppen in der Reihenfolge, in der ihre erste Zeile kommt – so steuert die Sortierung auch die Gruppen. */
+function groupByCategory(contacts) {
+  const groups = new Map();
+  for (const contact of contacts) {
+    const category = contact.category || OTHER_CATEGORY;
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category).push(contact);
+  }
+  return groups;
+}
+
+/** Für tel:-Links nur Ziffern und ein führendes Plus, sonst wählen manche Handys falsch. */
+const telHref = (phone) => `tel:${phone.replace(/[^\d+]/g, '')}`;
+
+function contactHtml(contact, admin) {
+  const lines = [];
+  if (contact.phone) lines.push(`<a href="${escapeHtml(telHref(contact.phone))}">${escapeHtml(contact.phone)}</a>`);
+  if (contact.email) lines.push(`<a href="mailto:${escapeHtml(contact.email)}">${escapeHtml(contact.email)}</a>`);
+  // Die API lässt nur http(s) zu; die Prüfung hier schützt zusätzlich vor alten oder fremden Daten.
+  if (contact.website && /^https?:\/\//i.test(contact.website)) {
+    lines.push(`<a href="${escapeHtml(contact.website)}" target="_blank" rel="noopener">${escapeHtml(contact.website.replace(/^https?:\/\//i, ''))}</a>`);
+  }
+  if (contact.address) lines.push(escapeHtml(contact.address));
+
+  return `
+    <li class="contact">
+      <div class="contact-head">
+        <h3>${escapeHtml(contact.name)}</h3>
+        ${admin && !contact.publicContact ? '<span class="tag">Nur für Mitglieder</span>' : ''}
+      </div>
+      ${contact.organization ? `<p class="muted">${escapeHtml(contact.organization)}</p>` : ''}
+      ${lines.length ? `<p class="contact-lines">${lines.join('<br>')}</p>` : ''}
+      ${contact.note ? `<p class="contact-note">${escapeHtml(contact.note)}</p>` : ''}
+      ${admin ? `<a class="contact-edit" href="#/kontakte/${contact.id}/bearbeiten">Bearbeiten</a>` : ''}
+    </li>`;
+}
+
+async function viewContactList() {
+  const admin = isAdmin();
+  const action = admin ? '<a class="btn" href="#/kontakte/neu">Kontakt anlegen</a>' : '';
+  const contacts = await api('/api/contacts');
+
+  // Gäste sehen nur die öffentlichen Kontakte und sollen wissen, dass es mehr gibt.
+  const guestHint = state.user
+    ? ''
+    : '<p class="notice">Weitere Kontakte siehst du, wenn du <a href="#/login">angemeldet</a> bist.</p>';
+  if (!state.user) state.returnTo = '#/kontakte';
+
+  if (contacts.length === 0) {
+    const emptyText = `Es sind noch keine Kontakte eingetragen.${admin ? ' Leg den ersten über „Kontakt anlegen“ an.' : ''}`;
+    render(`${pageHead('kontakte', 'Kontakte', action)}${guestHint}<p class="muted">${emptyText}</p>`, 'kontakte');
+    return;
+  }
+
+  const groups = [...groupByCategory(contacts)].map(([category, items]) => `
+    <section class="contact-group">
+      <h2>${escapeHtml(category)}</h2>
+      <ul class="contact-list">${items.map((c) => contactHtml(c, admin)).join('')}</ul>
+    </section>`).join('');
+
+  render(`${pageHead('kontakte', 'Kontakte', action)}${guestHint}${groups}`, 'kontakte');
+}
+
+async function viewContactEditor(id) {
+  if (!isAdmin()) {
+    render(`${pageHead('kontakte', 'Kontakt anlegen')}<p class="notice">Nur Admins können Kontakte pflegen.</p>`, 'kontakte');
+    return;
+  }
+
+  const empty = {
+    name: '', organization: '', category: '', phone: '', email: '',
+    address: '', website: '', note: '', sortOrder: 0, publicContact: false,
+  };
+  const [contact, all] = await Promise.all([
+    id ? api(`/api/contacts/${encodeURIComponent(id)}`) : Promise.resolve(empty),
+    api('/api/contacts'),
+  ]);
+
+  // Vorschläge aus den vorhandenen Kategorien, damit nicht „Notfall“ und „Notfälle“ nebeneinander stehen.
+  const categories = [...new Set(all.map((c) => c.category).filter(Boolean))];
+  const field = (name, label, attrs = '', hint = '') => `
+    <div class="field">
+      <label for="${name}">${label}</label>
+      ${hint ? `<span class="hint">${hint}</span>` : ''}
+      <input id="${name}" name="${name}" ${attrs} value="${escapeHtml(contact[name])}">
+    </div>`;
+
+  render(`
+    <a class="back" href="#/kontakte">Abbrechen</a>
+    ${pageHead('kontakte', id ? 'Kontakt bearbeiten' : 'Kontakt anlegen')}
+    <div id="editor-error"></div>
+    <form class="form" id="contact-form">
+      ${field('name', 'Name', 'maxlength="150" required', 'Person oder Stelle, zum Beispiel „Hausmeister“ oder „Feuerwehr“.')}
+      ${field('organization', 'Firma oder Behörde', 'maxlength="150"')}
+      ${field('category', 'Kategorie', 'maxlength="50" list="categories"', 'Kontakte mit derselben Kategorie stehen zusammen, zum Beispiel „Notfall“.')}
+      <datalist id="categories">${categories.map((c) => `<option value="${escapeHtml(c)}">`).join('')}</datalist>
+      <div class="field-row">
+        ${field('phone', 'Telefon', 'type="tel" maxlength="50"')}
+        ${field('email', 'E-Mail', 'type="email" maxlength="255"')}
+      </div>
+      ${field('website', 'Webseite', 'type="url" maxlength="300" placeholder="https://"')}
+      ${field('address', 'Adresse', 'maxlength="300"')}
+      ${field('note', 'Hinweis', 'maxlength="500"', 'Optional, zum Beispiel Sprechzeiten.')}
+      ${field('sortOrder', 'Reihenfolge', 'type="number" step="1"', 'Kleinere Zahlen stehen weiter oben. Bei gleicher Zahl wird nach Namen sortiert.')}
+      <div class="field check">
+        <input id="publicContact" name="publicContact" type="checkbox" ${contact.publicContact ? 'checked' : ''}>
+        <label for="publicContact">Auch für Gäste sichtbar (z. B. Notfallnummern)</label>
+      </div>
+      <div class="admin-actions">
+        <button class="btn" type="submit">${id ? 'Änderungen speichern' : 'Kontakt anlegen'}</button>
+        ${id ? '<button class="btn danger" type="button" id="delete">Löschen</button>' : ''}
+      </div>
+    </form>`, 'kontakte');
+
+  const form = document.getElementById('contact-form');
+  const errorBox = document.getElementById('editor-error');
+
+  document.getElementById('delete')?.addEventListener('click', async () => {
+    if (!confirm(`„${contact.name}“ wirklich löschen?`)) return;
+    await api(`/api/contacts/${contact.id}`, { method: 'DELETE' });
+    location.hash = '#/kontakte';
+  });
+
+  form.addEventListener('submit', async (submitEvent) => {
+    submitEvent.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    // Über elements, weil form.name den Namen des Formulars liefert statt des Felds „name“.
+    const fields = form.elements;
+    const body = {
+      name: fields.name.value,
+      organization: fields.organization.value,
+      category: fields.category.value,
+      phone: fields.phone.value,
+      email: fields.email.value,
+      address: fields.address.value,
+      website: fields.website.value,
+      note: fields.note.value,
+      sortOrder: Number.parseInt(fields.sortOrder.value, 10) || 0,
+      publicContact: fields.publicContact.checked,
+    };
+
+    try {
+      if (id) await api(`/api/contacts/${contact.id}`, { method: 'PUT', body });
+      else await api('/api/contacts', { method: 'POST', body });
+      location.hash = '#/kontakte';
+    } catch (error) {
+      errorBox.innerHTML = error.status === 400
+        ? '<p class="notice error">Bitte prüfe die Angaben: Der Name muss ausgefüllt sein, die E-Mail-Adresse gültig und die Webseite mit http:// oder https:// beginnen.</p>'
+        : '<p class="notice error">Speichern hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
+      button.disabled = false;
+    }
+  });
+}
+
 // ---------- Bereiche, die noch gebaut werden ----------
 
 function viewPlaceholder(section) {
@@ -730,6 +889,9 @@ async function route() {
     else if (section === 'muell' && first === 'neu') await viewWasteEditor();
     else if (section === 'muell' && first === 'import') await viewWasteImport();
     else if (section === 'muell' && second === 'bearbeiten') await viewWasteEditor(first);
+    else if (section === 'kontakte' && !first) await viewContactList();
+    else if (section === 'kontakte' && first === 'neu') await viewContactEditor();
+    else if (section === 'kontakte' && second === 'bearbeiten') await viewContactEditor(first);
     else if (SECTIONS[section]) viewPlaceholder(section);
     else location.hash = '#/news';
   } catch (error) {

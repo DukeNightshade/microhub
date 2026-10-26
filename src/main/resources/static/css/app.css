@@ -453,6 +453,48 @@ select {
   font: inherit;
 }
 
+/* ---------- Kontakte ---------- */
+
+.contact-group { margin-bottom: 2rem; }
+.contact-group h2 {
+  margin: 0 0 .5rem;
+  font-size: .85rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.contact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.contact {
+  display: grid;
+  gap: .25rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.contact p { margin: 0; }
+.contact-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem; }
+.contact h3 { margin: 0; font-size: 1.1rem; line-height: 1.3; }
+/* Telefonnummern groß genug, um sie auf dem Handy sicher anzutippen */
+.contact-lines { line-height: 1.9; }
+.contact-lines a { overflow-wrap: anywhere; }
+.contact-note { color: var(--muted); font-size: .95rem; }
+.contact-edit { justify-self: start; margin-top: .25rem; font-size: .95rem; color: var(--muted); }
+
+.tag {
+  padding: .05rem .5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: .8rem;
+}
+
 /* Im Dunkelmodus braucht das Grau der Restmülltonne mehr Helligkeit, sonst verschwindet es */
 @media (prefers-color-scheme: dark) {
   .wt-RESTMUELL   { background: #868C92; }
