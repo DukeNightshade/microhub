@@ -129,13 +129,13 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
 - Single-Page-App mit Hash-Router in `static/js/app.js`. Routen:
   - `#/login`
   - News: `#/news`, `#/news/neu`, `#/news/:id`, `#/news/:id/bearbeiten`
-  - Kalender (Termine + Müll): `#/kalender` (öffnet die zuletzt benutzte Ansicht),
+  - Kalender (Termine + Müll): `#/kalender` (öffnet immer das Monatsraster),
     `#/kalender/liste`, `#/kalender/vergangen`, `#/kalender/monat[/JJJJ-MM]`,
     `#/kalender/termin/neu`, `#/kalender/termin/:id[/bearbeiten]`,
     `#/kalender/muell/neu`, `#/kalender/muell/import`, `#/kalender/muell/:id/bearbeiten`.
     Alte Adressen `#/termine…`/`#/muell…` leiten auf `#/kalender` um.
-  - Ansicht und Filter merkt sich der Browser (`localStorage`, `microhub.calendarView` /
-    `microhub.calendarHidden`), mit try/catch – ohne Speicher geht alles weiter.
+  - Die Filter merkt sich der Browser (`localStorage`, `microhub.calendarHidden`), mit
+    try/catch – ohne Speicher geht alles weiter. Die Ansicht wird bewusst nicht gemerkt.
   - Kontakte: `#/kontakte`, `#/kontakte/neu`, `#/kontakte/:id/bearbeiten` (keine Detailseite)
   - Brett: `#/brett`, `#/brett/neu`, `#/brett/:id/bearbeiten` (nur eingeloggt, keine Detailseite)
   - Konto: `#/registrieren`, `#/konto` (bei Einmal-Passwort leitet der Router jede Route hierher)
@@ -148,6 +148,9 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
 - Gestaltung: Bereichsfarben nach Tonnenfarben (`--c-news` blau, `--c-events` grün,
   `--c-waste` gelb, `--c-contacts` grau, `--c-board` Kork). Hell-/Dunkelmodus über
   `prefers-color-scheme`. Handy: Tab-Leiste unten; ab 900 px: Seitenleiste links.
+- Dunkelmodus: gefüllte Knöpfe, ausgewählte Chips und Umschalter **nicht weiß**, sondern
+  dunkel in der Bereichsfarbe getönt (`color-mix` mit `--sec`, Regel am Ende von `app.css`).
+  Wunsch des Entwicklers – weiße Flächen wirkten auf dunklem Grund zu grell.
 - **Keine Google Fonts oder andere externe CDNs** (DSGVO in Deutschland) – Systemschrift.
 - Texte in einfachem Deutsch aus Nutzersicht, Buttons sagen, was passiert.
 
@@ -256,7 +259,8 @@ damit echte Nutzer starten können; PWA und Push danach.
    zweiten Ablauf gelöscht, ein nicht geretteter 30 Tage nach Ablauf – jeweils samt Fotos,
    durch `BoardCleanupJob` jede Nacht um 3:30 Uhr (Europe/Berlin).
 7. **Kalender statt „Termine“ + „Müllabfuhr“** (26.10.2026): ein Reiter „Kalender“ (Tab-Leiste
-   jetzt 4 Reiter) mit **Liste nach Tagen (Standard) und Monatsraster**, umschaltbar.
+   jetzt 4 Reiter) mit **Monatsraster (Standard, nachgeschärft) und Liste nach Tagen**,
+   umschaltbar.
    **Filter-Chips** für Termine und jede Abfallart, gefiltert wird im Browser.
    **News-Beitrag mit Termin:** Im News-Formular blendet „Termin im Kalender eintragen“ Beginn,
    Ende, Ganztägig und Ort ein. Der Termin übernimmt den News-Titel, führt im Kalender zum

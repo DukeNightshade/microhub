@@ -801,3 +801,21 @@ code.secret { padding: .05rem .35rem; border-radius: 4px; background: var(--pape
   .slip { background: #fff; color: #000; border-color: #999; break-inside: avoid; }
   .slip-note { color: #333; }
 }
+
+/* ---------- Dunkelmodus: gedämpfte Füllungen ----------
+   Im hellen Modus sind gefüllte Knöpfe und ausgewählte Chips dunkel (--ink). Im Dunkelmodus wäre
+   --ink fast weiß und würde grell aus der Seite stechen. Stattdessen ein dunkler Ton in der
+   Bereichsfarbe (--sec): im Kalender grünlich, am Brett korkfarben. Steht am Dateiende, damit es
+   die Grundregeln oben überschreibt. */
+@media (prefers-color-scheme: dark) {
+  .btn:not(.secondary):not(.danger),
+  .filter[aria-pressed="true"],
+  .segmented a[aria-current="page"] {
+    background: color-mix(in srgb, var(--sec, var(--muted)) 30%, var(--surface));
+    border-color: color-mix(in srgb, var(--sec, var(--muted)) 70%, var(--surface));
+    color: var(--ink);
+  }
+  .btn:not(.secondary):not(.danger):hover {
+    background: color-mix(in srgb, var(--sec, var(--muted)) 42%, var(--surface));
+  }
+}

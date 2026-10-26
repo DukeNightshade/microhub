@@ -419,9 +419,8 @@ function addDays(date, days) {
   return copy;
 }
 
-// Merkt sich Ansicht und ausgeblendete Kategorien pro Browser. Ohne Speicher (privates Fenster)
+// Merkt sich die ausgeblendeten Kategorien pro Browser. Ohne Speicher (privates Fenster)
 // funktioniert alles weiter, nur eben ohne Erinnerung.
-const CALENDAR_VIEW_KEY = 'microhub.calendarView';
 const CALENDAR_HIDDEN_KEY = 'microhub.calendarHidden';
 
 function readStored(key, fallback) {
@@ -494,8 +493,8 @@ async function calendarHeadHtml(view) {
     ${pageHead('kalender', 'Kalender', actions)}
     <div class="cal-toolbar">
       <nav class="segmented" aria-label="Ansicht">
-        <a href="#/kalender/liste" ${view === 'liste' ? 'aria-current="page"' : ''}>Liste</a>
         <a href="#/kalender/monat" ${view === 'monat' ? 'aria-current="page"' : ''}>Monat</a>
+        <a href="#/kalender/liste" ${view === 'liste' ? 'aria-current="page"' : ''}>Liste</a>
       </nav>
       <div class="filters" role="group" aria-label="Was soll angezeigt werden?">${chips}</div>
     </div>`;
@@ -533,14 +532,13 @@ function enableCalendarFilter(onChange = () => {}) {
   return apply;
 }
 
-/** Ohne Angabe öffnet der Reiter die zuletzt benutzte Ansicht. */
+/** Der Reiter öffnet immer das Monatsraster; die Liste gibt es über den Umschalter (Entscheidung 26.10.2026). */
 function viewCalendar() {
-  location.replace(readStored(CALENDAR_VIEW_KEY, 'liste') === 'monat' ? '#/kalender/monat' : '#/kalender/liste');
+  location.replace('#/kalender/monat');
 }
 
 /** Liste nach Tagen: kommend (vorwärts) oder vergangen (rückwärts), jeweils in 8-Wochen-Schritten. */
 async function viewCalendarList(past) {
-  writeStored(CALENDAR_VIEW_KEY, 'liste');
   const admin = isAdmin();
   const CHUNK = 56;
   const today = new Date();
@@ -595,7 +593,6 @@ async function viewCalendarList(past) {
 
 /** Monatsraster Mo–So mit farbigen Zeichen; ein Klick auf einen Tag zeigt dessen Einträge darunter. */
 async function viewCalendarMonth(yearMonth) {
-  writeStored(CALENDAR_VIEW_KEY, 'monat');
   const admin = isAdmin();
   const now = new Date();
   const [year, month] = /^\d{4}-\d{2}$/.test(yearMonth ?? '')
