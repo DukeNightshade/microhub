@@ -57,11 +57,12 @@ src/main/java/dev/microhub/
 ├── contacts/    Contact, ContactRepository, ContactService, ContactController,
 │                ContactRequest, ContactItem
 ├── board/       BoardPost, BoardKind, BoardPostRepository, BoardService, BoardController,
-│                BoardRequest, BoardItem, BoardOptions
+│                BoardRequest, BoardItem, BoardList, BoardOptions, BoardPhoto,
+│                BoardPhotoRepository, PhotoStorage, BoardCleanupJob
 └── push/        (geplant) Web Push, Abos, Scheduler
 src/main/resources/
 ├── application.yaml
-├── db/migration/V1__init.sql … V4__board_post_contact.sql
+├── db/migration/V1__init.sql … V5__board_photo.sql
 └── static/      index.html, css/app.css, js/api.js, js/app.js
 ```
 
@@ -75,8 +76,9 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   `waste_collection` (mit `reminder_sent`), `contact`, `board_post` (mit `expires_at`),
   `push_subscription` (mit `notify_news/events/waste/board`).
 - **Ausgeführte Migrationen nie ändern.** Änderungen nur als neue Datei `V2__…sql` usw.
-  Ausgeführt sind `V1` bis `V4` (`V2` `contact.public`, `V3` `board_post.kind`,
-  `V4` `board_post.contact`); die nächste Migration heißt `V5__…`.
+  Ausgeführt sind `V1` bis `V5` (`V2` `contact.public`, `V3` `board_post.kind`,
+  `V4` `board_post.contact`, `V5` `board_post.revived` + Tabelle `board_photo`);
+  die nächste Migration heißt `V6__…`.
 - `open-in-view: false` → Lazy-Relationen nur innerhalb von `@Transactional` auflösen
   (oder `@EntityGraph` nutzen, siehe `NewsRepository`).
 - Text-Spalten (`TEXT`) in Entities mit `@Column(columnDefinition = "text")` mappen.
@@ -139,7 +141,8 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
 - [x] Termine-Modul (API) + Frontend (Liste, kommend/vergangen, Detail, Formular)
 - [x] Müllabfuhr (API, ICS-Import, Frontend) – Erinnerung per Push kommt später
 - [x] Kontakte (API + Frontend, öffentlich/intern getrennt)
-- [x] Schwarzes Brett (API + Frontend, Zettel-Karten mit Filter)
+- [x] Schwarzes Brett (API + Frontend, Zettel-Karten mit Filter, bis zu 3 Fotos,
+      einmal Neu-Aufhängen nach Ablauf, nächtlicher Aufräum-Job)
 - [ ] Benutzerverwaltung / Registrierung über Freischaltcodes
 - [ ] PWA (manifest.json, Service Worker, Icons, Offline-Fallback)
 - [ ] Web Push (VAPID)
@@ -148,14 +151,15 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
 
 ## Handover – Stand 26.10.2026
 
-**Zuletzt gemacht:** Kontakte-Modul und Schwarzes Brett fertig (API + Frontend), beide mit
-Gast, Benutzern und Admin im Browser getestet. Die Brett-Commits ab `fac98d9` liegen nur
-lokal, bis gepusht wird.
+**Zuletzt gemacht:** Kontakte-Modul und Schwarzes Brett fertig (API + Frontend), danach
+Fotos am Brett und die Ablauf-/Aufräumregeln. Alles mit Gast, Benutzern und Admin im Browser
+getestet.
 
 **Zustand der lokalen Umgebung:**
 - Datenbank enthält die **185 echten Abfuhrtermine** aus den ICS-Dateien des Landkreises
-  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen. Flyway steht auf `V4`.
+  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen. Flyway steht auf `V5`.
 - Genau **ein Benutzer**: `admin` (ROLE_ADMIN). News, Termine, Kontakte und Brett sind leer.
+- Fotos landen lokal in `data/uploads/` im Projektordner (per `.gitignore` ausgeschlossen).
 - Der Container `microhub-postgres-1` läuft oder lässt sich mit dem App-Start neu hochziehen.
 
 **Nächster Schritt: Benutzerverwaltung mit Freischaltcodes** (Entscheidung 1). Erst dadurch
@@ -191,6 +195,15 @@ Admin Codes verteilt (Liste zum Ausdrucken?), Passwort vergessen.
    Tausche“ (filtert im Browser). Für Rückmeldungen gibt es ein **eigenes optionales Feld
    „Kontakt“** (Migration V4) – bewusst nicht automatisch die E-Mail des Kontos (DSGVO).
    Telefonnummern und E-Mail-Adressen darin werden antippbar.
+5. **Fotos am Brett** (26.10.2026): **bis zu 3 Fotos** pro Aushang; das erste steht oben auf
+   dem Zettel („+2 Fotos“), Antippen öffnet eine Großansicht. Fotos verkleinert schon der
+   Browser (max. 1600 px, JPEG), der Server kodiert sie neu (entfernt GPS-Daten) und legt eine
+   600-px-Vorschau an. Dateien liegen im Upload-Ordner, in der DB nur `board_photo`.
+6. **Ablauf und Aufräumen** (26.10.2026): Ein abgelaufener Aushang ist für andere unsichtbar.
+   Der Autor sieht ihn unter „Deine abgelaufenen Aushänge“ und kann ihn innerhalb von
+   **30 Tagen genau einmal** neu aufhängen (`revived`). Ein neu aufgehängter Aushang wird beim
+   zweiten Ablauf gelöscht, ein nicht geretteter 30 Tage nach Ablauf – jeweils samt Fotos,
+   durch `BoardCleanupJob` jede Nacht um 3:30 Uhr (Europe/Berlin).
 
 ## Festlegungen Termine-Modul
 
@@ -245,6 +258,11 @@ Admin Codes verteilt (Liste zum Ausdrucken?), Passwort vergessen.
 
 ## Bekannte Stolperstellen
 
+- Den Aufräum-Job testet man, indem man die App mit `BOARD_CLEANUP_CRON="*/15 * * * * *"`
+  startet (alle 15 Sekunden) und `expires_at` in der DB zurückdatiert.
+- Bilddateien werden über `TransactionSynchronization` erst nach dem Commit gelöscht bzw. bei
+  einem Rollback wieder entfernt – Datenbank und Upload-Ordner bleiben so beieinander.
+
 - Jackson 3 lehnt JSON ab, in dem ein primitives Feld (`int`, `boolean`) eines Records fehlt
   (400 „Failed to read request“). Das Frontend schickt deshalb immer alle Felder.
 - Im Formular-JS Felder über `form.elements.<name>` lesen: `form.name` ist der Name des
@@ -280,4 +298,7 @@ Admin Codes verteilt (Liste zum Ausdrucken?), Passwort vergessen.
 - Produktion: `COOKIE_SECURE=true`, `SPRING_DATASOURCE_URL/USERNAME/PASSWORD`,
   `ADMIN_PASSWORD`, VAPID-Keys als Umgebungsvariablen (z. B. `.env` nur auf dem Server).
 - Docker-Image auf Basis eines Java-25-JRE-Images; Build/Deploy später per GitHub Actions.
-- Regelmäßiges DB-Backup (`pg_dump` per Cron) einplanen.
+- Regelmäßiges DB-Backup (`pg_dump` per Cron) einplanen – **und den Upload-Ordner mitsichern**,
+  sonst fehlen nach einer Wiederherstellung die Fotos.
+- Fotos: `UPLOAD_DIR` auf ein Docker-Volume zeigen lassen (z. B. `/data/uploads`), damit sie
+  ein neues App-Image überleben.

@@ -672,7 +672,7 @@ async function viewWasteImport() {
       form.reset();
     } catch (error) {
       result.innerHTML = error.status === 413 || error.status === 400
-        ? '<p class="notice error">Mit dieser Datei kann MicroHub nichts anfangen. Erwartet wird eine ICS-Datei bis 1 MB.</p>'
+        ? '<p class="notice error">Mit dieser Datei kann MicroHub nichts anfangen. Erwartet wird eine ICS-Datei bis 5 MB.</p>'
         : '<p class="notice error">Der Import hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
     }
     button.disabled = false;
@@ -868,9 +868,81 @@ function boardContactHtml(contact) {
   return escapeHtml(value);
 }
 
+/**
+ * Verkleinert ein Foto im Browser auf höchstens 1600 px und macht ein JPEG daraus.
+ * Das spart Datenvolumen und Speicher, und das Neuzeichnen entfernt nebenbei alle Metadaten
+ * wie den GPS-Standort. Der Server kodiert das Bild zur Sicherheit noch einmal neu.
+ */
+async function shrinkPhoto(file) {
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#fff'; // Transparenz (PNG) wird weiß, JPEG kennt keine
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Bild konnte nicht umgewandelt werden'))), 'image/jpeg', 0.85);
+  });
+}
+
+/** Großansicht der Fotos eines Aushangs. Ein <dialog> bringt Fokusfalle und Escape-Taste gleich mit. */
+function openLightbox(photos, start = 0) {
+  let dialog = document.getElementById('lightbox');
+  if (!dialog) {
+    document.body.insertAdjacentHTML('beforeend', `
+      <dialog class="lightbox" id="lightbox" aria-label="Fotos">
+        <img alt="">
+        <div class="lightbox-bar">
+          <button type="button" class="btn secondary small" data-step="-1">Zurück</button>
+          <span class="lightbox-count"></span>
+          <button type="button" class="btn secondary small" data-step="1">Weiter</button>
+          <button type="button" class="btn small" data-close>Schließen</button>
+        </div>
+      </dialog>`);
+    dialog = document.getElementById('lightbox');
+    const show = () => {
+      const photo = dialog.photos[dialog.index];
+      dialog.querySelector('img').src = photo.url;
+      dialog.querySelector('.lightbox-count').textContent = `${dialog.index + 1} von ${dialog.photos.length}`;
+      dialog.querySelectorAll('[data-step]').forEach((button) => { button.hidden = dialog.photos.length < 2; });
+    };
+    const step = (delta) => {
+      dialog.index = (dialog.index + delta + dialog.photos.length) % dialog.photos.length;
+      show();
+    };
+    dialog.showPhoto = show;
+    dialog.addEventListener('click', (clickEvent) => {
+      // Klick neben das Bild (auf den abgedunkelten Hintergrund) schließt ebenfalls.
+      if (clickEvent.target === dialog || clickEvent.target.closest('[data-close]')) dialog.close();
+      const stepButton = clickEvent.target.closest('[data-step]');
+      if (stepButton) step(Number(stepButton.dataset.step));
+    });
+    dialog.addEventListener('keydown', (keyEvent) => {
+      if (keyEvent.key === 'ArrowLeft') step(-1);
+      if (keyEvent.key === 'ArrowRight') step(1);
+    });
+  }
+  dialog.photos = photos;
+  dialog.index = start;
+  dialog.showPhoto();
+  dialog.showModal();
+}
+
 function boardCardHtml(post) {
+  const [first, ...more] = post.photos;
+  const photo = first ? `
+    <button type="button" class="note-photo" data-post="${post.id}" aria-label="Fotos von „${escapeHtml(post.title)}“ groß ansehen">
+      <img src="${escapeHtml(first.thumbUrl)}" alt="" loading="lazy" width="${first.width}" height="${first.height}">
+      ${more.length ? `<span class="note-photo-more">+${more.length} ${more.length === 1 ? 'Foto' : 'Fotos'}</span>` : ''}
+    </button>` : '';
+
   return `
     <li class="note" data-kind="${escapeHtml(post.kind)}">
+      ${photo}
       <span class="note-kind kind-${escapeHtml(post.kind)}">${escapeHtml(post.label)}</span>
       <h2>${escapeHtml(post.title)}</h2>
       <div class="note-body">${paragraphs(post.content)}</div>
@@ -888,13 +960,31 @@ async function viewBoardList() {
     return;
   }
 
-  const [options, posts] = await Promise.all([loadBoardOptions(), api('/api/board')]);
+  const [options, { active: posts, expired }] = await Promise.all([loadBoardOptions(), api('/api/board')]);
   const action = '<a class="btn" href="#/brett/neu">Aushang schreiben</a>';
+
+  // Eigene abgelaufene Aushänge: nur für den Autor sichtbar, einmal rettbar, sonst bald gelöscht.
+  const expiredSection = expired.length ? `
+    <section class="expired">
+      <h2>Deine abgelaufenen Aushänge</h2>
+      <p class="muted">Nur du siehst sie. Du kannst jeden davon einmal neu aufhängen – sonst wird er samt Fotos gelöscht.</p>
+      <ul class="expired-list">${expired.map((post) => `
+        <li>
+          <div>
+            <strong>${escapeHtml(post.title)}</strong>
+            <span class="muted">abgelaufen am ${dayAndMonth.format(new Date(post.expiresAt))} ·
+              wird am ${dayAndMonth.format(new Date(post.deletionDate))} gelöscht</span>
+          </div>
+          <a class="btn small secondary" href="#/brett/${post.id}/bearbeiten">Noch einmal aufhängen</a>
+        </li>`).join('')}
+      </ul>
+    </section>` : '';
 
   if (posts.length === 0) {
     render(`
       ${pageHead('brett', 'Schwarzes Brett', action)}
-      <p class="muted">Am Brett hängt gerade nichts. Du suchst oder bietest etwas? Schreib den ersten Aushang.</p>`, 'brett');
+      <p class="muted">Am Brett hängt gerade nichts. Du suchst oder bietest etwas? Schreib den ersten Aushang.</p>
+      ${expiredSection}`, 'brett');
     return;
   }
 
@@ -906,7 +996,15 @@ async function viewBoardList() {
     ${pageHead('brett', 'Schwarzes Brett', action)}
     <div class="filters" role="group" aria-label="Nach Art filtern">${filters}</div>
     <p class="muted" id="board-empty" hidden>Zu dieser Art hängt gerade nichts.</p>
-    <ul class="board" id="board">${posts.map(boardCardHtml).join('')}</ul>`, 'brett');
+    <ul class="board" id="board">${posts.map(boardCardHtml).join('')}</ul>
+    ${expiredSection}`, 'brett');
+
+  document.getElementById('board').addEventListener('click', (clickEvent) => {
+    const photoButton = clickEvent.target.closest('.note-photo');
+    if (!photoButton) return;
+    const post = posts.find((p) => String(p.id) === photoButton.dataset.post);
+    openLightbox(post.photos);
+  });
 
   // Gefiltert wird im Browser: alle Aushänge sind schon geladen, das spart Anfragen.
   const applyFilter = () => {
@@ -939,12 +1037,20 @@ async function viewBoardEditor(id) {
   const options = await loadBoardOptions();
   const post = id
     ? await api(`/api/board/${encodeURIComponent(id)}`)
-    : { kind: options.kinds[0].value, title: '', content: '', contact: '', editable: true };
+    : { kind: options.kinds[0].value, title: '', content: '', contact: '', editable: true, photos: [] };
 
   if (!post.editable) {
     render(`${pageHead('brett', 'Aushang bearbeiten')}<p class="notice">Diesen Aushang können nur die Person, die ihn geschrieben hat, und Admins ändern.</p>`, 'brett');
     return;
   }
+
+  // Ein abgelaufener Aushang wird hier einmalig neu aufgehängt; das Backend lässt es nur einmal zu.
+  const reviving = Boolean(post.expired);
+  const heading = reviving ? 'Noch einmal aufhängen' : id ? 'Aushang bearbeiten' : 'Aushang schreiben';
+  const reviveNotice = reviving
+    ? `<p class="notice">Dieser Aushang ist am ${escapeHtml(fullDate.format(new Date(post.expiresAt)))} abgelaufen.
+         Du kannst ihn <strong>einmal</strong> neu aufhängen. Läuft er danach wieder ab, wird er gelöscht.</p>`
+    : '';
 
   const kinds = options.kinds.map((kind) => `
     <label class="choice">
@@ -955,13 +1061,18 @@ async function viewBoardEditor(id) {
   const durations = options.durations.map((days) => `
     <option value="${days}" ${days === options.defaultDuration ? 'selected' : ''}>${days} Tage</option>`).join('');
 
-  const durationHint = id
-    ? `Hängt bisher bis ${escapeHtml(fullDate.format(new Date(post.expiresAt)))}. Beim Speichern wird die Laufzeit ab heute neu gerechnet.`
-    : 'Danach verschwindet der Aushang von selbst.';
+  const durationHint = reviving
+    ? 'Ab heute gerechnet.'
+    : id
+      ? `Hängt bisher bis ${escapeHtml(fullDate.format(new Date(post.expiresAt)))}. Beim Speichern wird die Laufzeit ab heute neu gerechnet.`
+      : 'Danach verschwindet der Aushang von selbst.';
+
+  const submitLabel = reviving ? 'Noch einmal aufhängen' : id ? 'Änderungen speichern' : 'Aushang aufhängen';
 
   render(`
     <a class="back" href="#/brett">Abbrechen</a>
-    ${pageHead('brett', id ? 'Aushang bearbeiten' : 'Aushang schreiben')}
+    ${pageHead('brett', heading)}
+    ${reviveNotice}
     <div id="editor-error"></div>
     <form class="form" id="board-form">
       <fieldset class="field">
@@ -982,18 +1093,81 @@ async function viewBoardEditor(id) {
         <input id="contact" name="contact" maxlength="200" value="${escapeHtml(post.contact)}">
       </div>
       <div class="field">
+        <label for="photos">Fotos</label>
+        <span class="hint" id="photo-hint"></span>
+        <ul class="photo-picker" id="photo-picker"></ul>
+        <input id="photos" type="file" accept="image/jpeg,image/png" multiple>
+      </div>
+      <div class="field">
         <label for="durationDays">Wie lange soll der Aushang hängen?</label>
         <span class="hint">${durationHint}</span>
         <select id="durationDays" name="durationDays">${durations}</select>
       </div>
       <div class="admin-actions">
-        <button class="btn" type="submit">${id ? 'Änderungen speichern' : 'Aushang aufhängen'}</button>
+        <button class="btn" type="submit">${submitLabel}</button>
         ${id ? '<button class="btn danger" type="button" id="delete">Abnehmen</button>' : ''}
       </div>
     </form>`, 'brett');
 
   const form = document.getElementById('board-form');
   const errorBox = document.getElementById('editor-error');
+
+  // Fotos werden erst beim Speichern hochgeladen bzw. entfernt – „Abbrechen“ ändert also nichts.
+  const kept = [...post.photos];
+  const removed = [];
+  const added = []; // { blob, url } – url ist eine lokale Vorschau-Adresse
+  const picker = document.getElementById('photo-picker');
+  const fileInput = document.getElementById('photos');
+
+  const renderPhotos = () => {
+    const total = kept.length + added.length;
+    picker.innerHTML = [
+      ...kept.map((photo) => `
+        <li><img src="${escapeHtml(photo.thumbUrl)}" alt="">
+          <button type="button" class="link-button" data-kept="${photo.id}">Entfernen</button></li>`),
+      ...added.map((photo, index) => `
+        <li><img src="${photo.url}" alt="">
+          <button type="button" class="link-button" data-added="${index}">Entfernen</button></li>`),
+    ].join('');
+    fileInput.hidden = total >= options.maxPhotos;
+    document.getElementById('photo-hint').textContent = total >= options.maxPhotos
+      ? `Mehr als ${options.maxPhotos} Fotos gehen nicht. Entferne eins, um ein anderes zu wählen.`
+      : `Optional, bis zu ${options.maxPhotos}. Fotos werden vor dem Hochladen verkleinert, Standortdaten aus dem Handy werden entfernt.`;
+  };
+
+  picker.addEventListener('click', (clickEvent) => {
+    const button = clickEvent.target.closest('button');
+    if (!button) return;
+    if (button.dataset.kept) {
+      const index = kept.findIndex((photo) => String(photo.id) === button.dataset.kept);
+      removed.push(...kept.splice(index, 1));
+    } else {
+      const [photo] = added.splice(Number(button.dataset.added), 1);
+      URL.revokeObjectURL(photo.url);
+    }
+    renderPhotos();
+  });
+
+  fileInput.addEventListener('change', async () => {
+    errorBox.innerHTML = '';
+    const free = options.maxPhotos - kept.length - added.length;
+    const files = [...fileInput.files];
+    fileInput.value = '';
+    for (const file of files.slice(0, free)) {
+      try {
+        const blob = await shrinkPhoto(file);
+        added.push({ blob, url: URL.createObjectURL(blob) });
+      } catch {
+        errorBox.innerHTML = `<p class="notice error">„${escapeHtml(file.name)}“ lässt sich nicht als Foto lesen. Bitte ein JPEG- oder PNG-Bild wählen.</p>`;
+      }
+    }
+    if (files.length > free) {
+      errorBox.innerHTML = `<p class="notice error">Es passen nur ${options.maxPhotos} Fotos an einen Aushang – die übrigen wurden weggelassen.</p>`;
+    }
+    renderPhotos();
+  });
+
+  renderPhotos();
 
   document.getElementById('delete')?.addEventListener('click', async () => {
     if (!confirm(`„${post.title}“ wirklich abnehmen? Der Aushang wird gelöscht.`)) return;
@@ -1014,17 +1188,38 @@ async function viewBoardEditor(id) {
       durationDays: Number(fields.durationDays.value),
     };
 
+    let saved;
     try {
-      if (id) await api(`/api/board/${post.id}`, { method: 'PUT', body });
-      else await api('/api/board', { method: 'POST', body });
-      location.hash = '#/brett';
+      saved = id
+        ? await api(`/api/board/${post.id}`, { method: 'PUT', body })
+        : await api('/api/board', { method: 'POST', body });
     } catch (error) {
       errorBox.innerHTML = error.status === 400
         ? '<p class="notice error">Überschrift und Text müssen ausgefüllt sein.</p>'
-        : error.status === 403
+        : error.status === 403 || error.status === 409
           ? `<p class="notice error">${escapeHtml(error.message)}</p>`
           : '<p class="notice error">Speichern hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
       button.disabled = false;
+      return;
+    }
+
+    // Der Text ist gespeichert; jetzt die Fotos. Scheitert eins, bleibt der Aushang trotzdem bestehen.
+    try {
+      for (const photo of removed) {
+        await api(`/api/board/${saved.id}/photos/${photo.id}`, { method: 'DELETE' });
+      }
+      for (const photo of added) {
+        const upload = new FormData();
+        upload.append('file', photo.blob, 'foto.jpg');
+        await api(`/api/board/${saved.id}/photos`, { method: 'POST', upload });
+        URL.revokeObjectURL(photo.url);
+      }
+      location.hash = '#/brett';
+    } catch {
+      // Der Knopf bleibt gesperrt: ein zweites Absenden würde einen neuen Aushang doppelt anlegen.
+      errorBox.innerHTML = `
+        <p class="notice error">Der Aushang ist gespeichert, aber nicht alle Fotos konnten hochgeladen werden.
+          <a href="#/brett/${saved.id}/bearbeiten">Fotos noch einmal versuchen</a></p>`;
     }
   });
 }

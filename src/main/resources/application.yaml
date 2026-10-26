@@ -9,9 +9,9 @@ spring:
     problemdetails:
       enabled: true          # Fehler als JSON mit Beschreibung zurückgeben
   servlet:
-    multipart:               # nur für den ICS-Import der Müllabfuhr
-      max-file-size: 1MB
-      max-request-size: 2MB
+    multipart:               # ICS-Import der Müllabfuhr und Fotos am Brett
+      max-file-size: 5MB     # Fotos verkleinert schon der Browser; das ist die Notbremse
+      max-request-size: 6MB
   # Lokal: Datenbank wird über compose.yaml automatisch gestartet und verbunden.
   # Produktion: SPRING_DATASOURCE_URL / _USERNAME / _PASSWORD als Umgebungsvariablen.
 
@@ -35,3 +35,9 @@ microhub:
     username: ${ADMIN_USERNAME:admin}
     email: ${ADMIN_EMAIL:}
     password: ${ADMIN_PASSWORD:}         # niemals ins Repo schreiben!
+  # Fotos vom Schwarzen Brett. Lokal im Projektordner (per .gitignore ausgeschlossen),
+  # in Produktion ein Docker-Volume, das mitgesichert werden muss.
+  upload-dir: ${UPLOAD_DIR:./data/uploads}
+  board:
+    # Wann abgelaufene Aushänge gelöscht werden (Sekunde Minute Stunde Tag Monat Wochentag)
+    cleanup-cron: ${BOARD_CLEANUP_CRON:0 30 3 * * *}

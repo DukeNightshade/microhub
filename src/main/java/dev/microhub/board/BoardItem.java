@@ -1,10 +1,12 @@
 package dev.microhub.board;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Ein Aushang, wie ihn das Frontend anzeigt.
  * editable sagt, ob der angemeldete Benutzer ihn ändern darf – das Frontend zeigt danach „Bearbeiten“.
+ * expired/revivable/deletionDate braucht nur der Autor für seine abgelaufenen Aushänge.
  */
 public record BoardItem(
         Long id,
@@ -16,9 +18,22 @@ public record BoardItem(
         String authorName,
         Instant createdAt,
         Instant expiresAt,
-        boolean editable) {
+        boolean editable,
+        boolean expired,
+        boolean revivable,
+        Instant deletionDate,
+        List<Photo> photos) {
 
-    static BoardItem from(BoardPost post, boolean editable) {
+    /** URLs statt Dateinamen: Das Frontend muss nicht wissen, wo die Dateien liegen. */
+    public record Photo(Long id, String url, String thumbUrl, int width, int height) {
+
+        static Photo from(BoardPhoto photo) {
+            String base = "/api/board/photos/" + photo.getId();
+            return new Photo(photo.getId(), base, base + "?thumb=true", photo.getWidth(), photo.getHeight());
+        }
+    }
+
+    static BoardItem from(BoardPost post, boolean editable, Instant now) {
         return new BoardItem(
                 post.getId(),
                 post.getKind(),
@@ -29,6 +44,10 @@ public record BoardItem(
                 post.getAuthor().getDisplayName(),
                 post.getCreatedAt(),
                 post.getExpiresAt(),
-                editable);
+                editable,
+                post.isExpired(now),
+                editable && post.canBeRevived(now),
+                post.getDeletionDate(),
+                post.getPhotos().stream().map(Photo::from).toList());
     }
 }

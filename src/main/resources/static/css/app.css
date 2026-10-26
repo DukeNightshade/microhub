@@ -606,6 +606,80 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; font-weight: 600; }
   .board { --cork: #5E4730; --cork-grain: rgba(0, 0, 0, .28); --note: #EDE7D6; }
 }
 
+/* Foto oben auf dem Zettel; ein Knopf, damit es auch per Tastatur groß aufgeht */
+.note-photo {
+  position: relative;
+  display: block;
+  margin: .3rem 0 .2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.note-photo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 14rem;
+  object-fit: cover;
+  border-radius: 2px;
+}
+.note-photo-more {
+  position: absolute;
+  right: .4rem;
+  bottom: .4rem;
+  padding: .1rem .5rem;
+  border-radius: 999px;
+  background: rgba(23, 35, 43, .8);
+  color: #FFFFFF;
+  font-size: .8rem;
+  font-weight: 600;
+}
+
+/* Großansicht */
+.lightbox {
+  max-width: min(96vw, 1100px);
+  max-height: 96dvh;
+  padding: .75rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+.lightbox::backdrop { background: rgba(0, 0, 0, .8); }
+.lightbox img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(96dvh - 5rem);
+  margin: 0 auto;
+}
+.lightbox-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .6rem; margin-top: .75rem; }
+.lightbox-count { color: var(--muted); font-size: .95rem; }
+
+/* Fotoauswahl im Formular */
+.photo-picker { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .75rem; }
+.photo-picker:empty { display: none; }
+.photo-picker li { display: grid; gap: .25rem; justify-items: start; }
+.photo-picker img { width: 6.5rem; height: 6.5rem; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); }
+.photo-picker .link-button { font-size: .9rem; color: var(--muted); }
+
+/* Eigene abgelaufene Aushänge unter dem Brett */
+.expired { margin-top: 2.25rem; }
+.expired h2 { margin: 0 0 .25rem; font-size: 1.15rem; }
+.expired > p { margin: 0 0 .75rem; }
+.expired-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.expired-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem 1rem;
+  padding: .8rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.expired-list li div { display: grid; }
+.expired-list .muted { font-size: .9rem; }
+
 /* Im Dunkelmodus braucht das Grau der Restmülltonne mehr Helligkeit, sonst verschwindet es */
 @media (prefers-color-scheme: dark) {
   .wt-RESTMUELL   { background: #868C92; }
