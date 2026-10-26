@@ -147,9 +147,12 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
 - Alle Daten aus der API **immer escapen** (`escapeHtml`). Kein HTML aus der Datenbank
   rendern; Fließtext wird über Leerzeilen in Absätze geteilt.
 - **Gestaltung** (26.10.2026, mit dem Entwickler abgestimmt):
-  - **Logo:** fünf kleine Tonnen mit Deckel in den Bereichsfarben (`.brand-mark i`, Deckel per
-    `::before`) plus „MicroHub“ in der Schilderschrift. Ein blaues Emailleschild als Logo wurde
-    ausprobiert und vom Entwickler verworfen – das alte Strich-Logo gefiel ihm besser.
+  - **Logo:** der „Hub“ – ein Knoten mit fünf Speichen zu farbigen Punkten (News, Termine,
+    Müll, Kontakte, Brett) als Inline-SVG in `index.html` (`.brand-hub`), daneben „MicroHub“.
+    **Dauerhaft, sehr dezent animiert:** die Punkte schwellen reihum an, dann pulsiert der
+    Knoten, danach Pause (9 s je Durchlauf). Nur `transform`/`opacity`, bei
+    `prefers-reduced-motion: reduce` aus. Vorher verworfen: blaues Emailleschild; danach kurz
+    fünf Tonnen-Striche, bis der Entwickler ein zum Namen passendes Logo wollte.
   - Farben aus Treppenhaus und Ostseegegend: Kalkputz `--paper`, Emaille-Blau `--c-news`,
     Kiefer `--c-events`, Ostsee-Grau `--c-contacts`, Kork `--c-board`; `--c-waste` (gelb) nur
     noch im Logo. Die Tonnenfarben (`.wt-*`) gelten sonst nur für die Müllpunkte.

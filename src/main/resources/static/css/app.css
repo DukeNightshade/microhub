@@ -1,6 +1,6 @@
 /* =========================================================
    MicroHub – Grundgestaltung
-   Logo: fünf kleine Tonnen in den Bereichsfarben. Die Farben kommen aus Treppenhaus und
+   Logo: ein „Hub“ – Knoten mit fünf farbigen Bereichen, dezent animiert. Die Farben kommen aus Treppenhaus und
    Ostseegegend: Kalkputz, Emaille-Blau, Kiefer, Ostsee-Grau, Kork. Die Tonnenfarben der
    Abfallarten gelten sonst nur für die Müllpunkte, weil sie dort etwas bedeuten.
 
@@ -130,11 +130,11 @@ a { color: inherit; }
   border-bottom: 1px solid var(--line);
 }
 
-/* Logo: fünf kleine Tonnen in den Bereichsfarben, daneben der Name in der Schilderschrift */
+/* Logo: der „Hub“ – ein Knoten mit fünf farbigen Bereichen, daneben der Name */
 .brand {
   display: inline-flex;
-  align-items: flex-end;
-  gap: .65rem;
+  align-items: center;
+  gap: .55rem;
   font-family: var(--font-sign);
   font-size: 1.55rem;
   font-weight: 700;
@@ -144,31 +144,32 @@ a { color: inherit; }
 }
 .brand:focus-visible { outline-offset: 4px; }
 
-.brand-mark {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 1.45rem;
-  padding-top: 3px; /* Platz für die Deckel */
+.brand-hub { width: 2rem; height: 2rem; flex: none; overflow: visible; }
+.hub-spokes line { stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; opacity: .35; }
+.hub-core { fill: currentColor; }
+.hub-dot {
+  fill: var(--sec);
+  transform-box: fill-box;      /* Skalieren um die eigene Mitte statt um die Ecke des SVG */
+  transform-origin: center;
 }
-/* Jede Tonne: schmaler Körper, darüber ein etwas breiterer Deckel */
-.brand-mark i {
-  position: relative;
-  display: block;
-  width: 8px;
-  height: 100%;
-  border-radius: 1px 1px 2px 2px;
-  background: var(--sec);
+
+/*
+ * Animation: Die fünf Punkte schwellen nacheinander kurz an, danach pulsiert der Knoten einmal –
+ * dann eine lange Pause (ein Durchlauf dauert 9 Sekunden). Es bewegen sich nur transform und
+ * opacity; das erledigt die Grafikkarte, die Seite muss dafür nicht neu gezeichnet werden.
+ * Im Hintergrund-Tab drosselt der Browser die Animation ohnehin.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .hub-dot { animation: hub-signal 9s ease-in-out infinite; animation-delay: calc(var(--i) * .45s); }
+  .hub-core { transform-box: fill-box; transform-origin: center; animation: hub-arrive 9s ease-in-out infinite; }
 }
-.brand-mark i::before {
-  content: "";
-  position: absolute;
-  top: -3px;
-  left: -1px;
-  right: -1px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--sec);
+@keyframes hub-signal {
+  0%, 9%, 100% { transform: scale(1); opacity: 1; }
+  4%           { transform: scale(1.4); opacity: .85; }
+}
+@keyframes hub-arrive {
+  0%, 26%, 34%, 100% { transform: scale(1); }
+  30%                { transform: scale(1.18); }
 }
 
 .account {

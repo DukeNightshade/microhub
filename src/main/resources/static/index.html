@@ -16,10 +16,23 @@
 
   <header class="topbar">
     <a class="brand" href="#/news" aria-label="MicroHub Startseite">
-      <!-- Fünf Tonnen am Straßenrand: News, Termine, Müll, Kontakte, Brett -->
-      <span class="brand-mark" aria-hidden="true">
-        <i style="--sec: var(--c-news)"></i><i style="--sec: var(--c-events)"></i><i style="--sec: var(--c-waste)"></i><i style="--sec: var(--c-contacts)"></i><i style="--sec: var(--c-board)"></i>
-      </span>
+      <!-- Der „Hub“: ein Knoten, an dem fünf Bereiche zusammenlaufen (News, Termine, Müll, Kontakte, Brett).
+           Die Punkte leuchten reihum auf, als kämen Nachrichten am Knoten an. -->
+      <svg class="brand-hub" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <g class="hub-spokes">
+          <line x1="16" y1="16" x2="16" y2="5"/>
+          <line x1="16" y1="16" x2="26.46" y2="12.6"/>
+          <line x1="16" y1="16" x2="22.47" y2="24.9"/>
+          <line x1="16" y1="16" x2="9.53" y2="24.9"/>
+          <line x1="16" y1="16" x2="5.54" y2="12.6"/>
+        </g>
+        <circle class="hub-dot" cx="16" cy="5" r="2.9" style="--sec: var(--c-news); --i: 0"/>
+        <circle class="hub-dot" cx="26.46" cy="12.6" r="2.9" style="--sec: var(--c-events); --i: 1"/>
+        <circle class="hub-dot" cx="22.47" cy="24.9" r="2.9" style="--sec: var(--c-waste); --i: 2"/>
+        <circle class="hub-dot" cx="9.53" cy="24.9" r="2.9" style="--sec: var(--c-contacts); --i: 3"/>
+        <circle class="hub-dot" cx="5.54" cy="12.6" r="2.9" style="--sec: var(--c-board); --i: 4"/>
+        <circle class="hub-core" cx="16" cy="16" r="3.8"/>
+      </svg>
       MicroHub
     </a>
     <div class="account" id="account"></div>
