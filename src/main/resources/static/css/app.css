@@ -307,6 +307,60 @@ main:focus, main:focus-visible { outline: none; }
 }
 .news-meta { margin: 0; color: var(--muted); font-size: .92rem; }
 
+/* Titelbild im Aufmacher: breit, einheitlich im Seitenverhältnis 16:9 zugeschnitten */
+.news-lead-cover {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  margin-bottom: .35rem;
+  border-radius: 4px;
+}
+
+/* Übrige Meldungen: kleines quadratisches Vorschaubild rechts neben dem Text */
+.news-item.has-thumb { grid-template-columns: minmax(0, 1fr) auto; align-items: start; column-gap: 1rem; }
+.news-text { display: grid; gap: .35rem; min-width: 0; }
+.news-thumb {
+  width: 6.5rem;
+  height: 6.5rem;
+  object-fit: cover;
+  border-radius: 4px;
+}
+@media (max-width: 480px) {
+  .news-thumb { width: 4.75rem; height: 4.75rem; }
+}
+
+/* Im Beitrag: Titelbild groß, weitere Bilder als Galerie; beides öffnet die Großansicht */
+.article-cover, .article-gallery button {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.article-cover { width: 100%; margin: 0 0 1.5rem; }
+.article-cover img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 32rem;
+  object-fit: cover;
+  border-radius: var(--radius);
+}
+.article-gallery {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: .6rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+}
+.article-gallery img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; }
+
+/* In der Bildauswahl: das erste Bild ist bei News das Titelbild */
+.cover-tag { font-size: .85rem; font-weight: 700; color: var(--c-news); }
+
 /* Umschalter zwischen kommenden und vergangenen Einträgen */
 .list-switch { margin: -.5rem 0 1.25rem; }
 

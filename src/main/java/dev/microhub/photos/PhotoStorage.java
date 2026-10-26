@@ -1,4 +1,4 @@
-package dev.microhub.board;
+package dev.microhub.photos;
 
 import dev.microhub.common.BadRequestException;
 import java.awt.Color;

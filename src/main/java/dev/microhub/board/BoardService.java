@@ -1,5 +1,6 @@
 package dev.microhub.board;
 
+import dev.microhub.photos.PhotoStorage;
 import dev.microhub.common.ConflictException;
 import dev.microhub.common.ForbiddenException;
 import dev.microhub.common.NotFoundException;

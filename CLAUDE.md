@@ -58,7 +58,10 @@ src/main/java/dev/microhub/
 │                SessionTerminator, MustChangePasswordInterceptor, AccountDeletedEvent,
 │                AccountCleanupJob
 ├── news/        News, NewsRepository, NewsService, NewsController,
-│                NewsRequest, NewsResponse, NewsListItem, NewsPage
+│                NewsRequest, NewsResponse, NewsListItem, NewsPage,
+│                NewsPhoto, NewsPhotoRepository, NewsPhotoItem
+├── photos/      PhotoStorage (Bilder prüfen, verkleinern, ohne Metadaten speichern;
+│                von Brett und News gemeinsam genutzt)
 ├── calendar/    CalendarController, CalendarEntry (Termine + Müll in einem Zeitraum)
 ├── events/      CalendarEvent, EventRepository, EventService, EventController,
 │                EventRequest, EventResponse, EventTiming, EventInfo
@@ -69,11 +72,11 @@ src/main/java/dev/microhub/
 │                ContactRequest, ContactItem
 ├── board/       BoardPost, BoardKind, BoardPostRepository, BoardService, BoardController,
 │                BoardRequest, BoardItem, BoardList, BoardOptions, BoardPhoto,
-│                BoardPhotoRepository, PhotoStorage, BoardCleanupJob
+│                BoardPhotoRepository, BoardCleanupJob
 └── push/        (geplant) Web Push, Abos, Scheduler
 src/main/resources/
 ├── application.yaml
-├── db/migration/V1__init.sql … V8__event_news_link.sql
+├── db/migration/V1__init.sql … V9__news_photo.sql
 └── static/      index.html, css/app.css, js/api.js, js/app.js,
                  fonts/ (WOFF2 + OFL-Lizenztexte, selbst ausgeliefert)
 ```
@@ -92,7 +95,8 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   `V4` `board_post.contact`, `V5` `board_post.revived` + Tabelle `board_photo`,
   `V6` Tabelle `invite_code` + `app_user.invite_code_id`/`must_change_password`,
   `V7` `app_user.apartment`/`blocked_at`, `invite_code.revoked_at`, `invite_code_id` entfernt,
-  `V8` `calendar_event.news_id` mit ON DELETE CASCADE); die nächste Migration heißt `V9__…`.
+  `V8` `calendar_event.news_id` mit ON DELETE CASCADE, `V9` Tabelle `news_photo`);
+  die nächste Migration heißt `V10__…`.
 - `open-in-view: false` → Lazy-Relationen nur innerhalb von `@Transactional` auflösen
   (oder `@EntityGraph` nutzen, siehe `NewsRepository`).
 - Text-Spalten (`TEXT`) in Entities mit `@Column(columnDefinition = "text")` mappen.
@@ -158,6 +162,7 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
     noch im Logo. Die Tonnenfarben (`.wt-*`) gelten sonst nur für die Müllpunkte.
   - **News:** neueste Meldung als Aufmacher (`.news-lead`), darunter luftige Zeilen mit
     höchstens zwei Zeilen Kurzfassung; Datum relativ („Heute“, „Gestern“, Wochentag).
+    Titelbild breit im Aufmacher, als Vorschaubild rechts neben den übrigen Meldungen.
   - **Brett:** Korkwand im Holzrahmen, Papierfarbe und Nadelfarbe je Art (Suche blau,
     Biete grün, Tausche gelb), Fotos als Abzug mit weißem Rand, leeres Brett zeigt einen
     Einladungs-Zettel.
@@ -292,6 +297,13 @@ damit echte Nutzer starten können; PWA und Push danach.
    Beitrag, der Beitrag zeigt den Termin mit Link zum Kalendermonat. Solche Termine werden nur
    über den Beitrag gepflegt (`/api/events/{id}` antwortet sonst 409). **Beitrag löschen löscht
    den Termin mit** (DB-Kaskade). **Einzelne Termine ohne News** bleiben möglich.
+8. **Bilder in News** (26.10.2026): **bis zu 5 Bilder** pro Beitrag, das erste ist das
+   **Titelbild** und erscheint im Feed (breit im Aufmacher, klein neben den anderen Meldungen).
+   Im Beitrag: Titelbild groß, die übrigen als Galerie, beides öffnet die Großansicht.
+   News-Bilder sind öffentlich wie die News (`GET /api/news/photos/{id}`, „public“ cachebar).
+   Gleiche Verarbeitung wie am Brett (`PhotoStorage`). Bilder werden in der Bildauswahl
+   (`enablePhotoPicker` in `app.js`, auch vom Brett genutzt) erst beim Speichern hochgeladen.
+   Beitrag löschen entfernt Zeilen per Kaskade und die Dateien nach dem Commit.
 
 ## Festlegungen Termine-Modul
 

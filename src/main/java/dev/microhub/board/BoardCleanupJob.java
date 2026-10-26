@@ -1,5 +1,6 @@
 package dev.microhub.board;
 
+import dev.microhub.photos.PhotoStorage;
 import java.time.Instant;
 import java.util.List;
 import org.slf4j.Logger;

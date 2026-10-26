@@ -151,8 +151,13 @@ function newsEventBadge(item) {
 
 /** Die neueste Meldung steht groß oben, damit man sofort sieht, was gerade los ist. */
 function newsLeadHtml(item) {
+  // Das Titelbild in voller Größe: der Aufmacher ist breit, das Vorschaubild wäre dort unscharf.
+  const cover = item.cover ? `
+    <img class="news-lead-cover" src="${escapeHtml(item.cover.url)}" alt=""
+         width="${item.cover.width}" height="${item.cover.height}">` : '';
   return `
-    <a class="news-lead" href="#/news/${item.id}">
+    <a class="news-lead ${item.cover ? 'has-cover' : ''}" href="#/news/${item.id}">
+      ${cover}
       <h2>${escapeHtml(item.title)}</h2>
       ${item.summary ? `<p class="news-lead-summary">${escapeHtml(item.summary)}</p>` : ''}
       ${newsEventBadge(item)}
@@ -163,11 +168,14 @@ function newsLeadHtml(item) {
 function newsItemHtml(item) {
   return `
     <li>
-      <a class="news-item" href="#/news/${item.id}">
-        <h2>${escapeHtml(item.title)}</h2>
-        ${item.summary ? `<p class="news-summary">${escapeHtml(item.summary)}</p>` : ''}
-        ${newsEventBadge(item)}
-        <p class="news-meta"><time datetime="${escapeHtml(item.publishedAt)}">${relativeDay(item.publishedAt)}</time>${item.author ? `, von ${escapeHtml(item.author)}` : ''}</p>
+      <a class="news-item ${item.cover ? 'has-thumb' : ''}" href="#/news/${item.id}">
+        <div class="news-text">
+          <h2>${escapeHtml(item.title)}</h2>
+          ${item.summary ? `<p class="news-summary">${escapeHtml(item.summary)}</p>` : ''}
+          ${newsEventBadge(item)}
+          <p class="news-meta"><time datetime="${escapeHtml(item.publishedAt)}">${relativeDay(item.publishedAt)}</time>${item.author ? `, von ${escapeHtml(item.author)}` : ''}</p>
+        </div>
+        ${item.cover ? `<img class="news-thumb" src="${escapeHtml(item.cover.thumbUrl)}" alt="" loading="lazy">` : ''}
       </a>
     </li>`;
 }
@@ -205,6 +213,7 @@ async function viewNewsList() {
 async function viewNewsDetail(id) {
   const news = await api(`/api/news/${encodeURIComponent(id)}`);
   const edited = news.updatedAt && new Date(news.updatedAt) - new Date(news.publishedAt) > 60_000;
+  const [cover, ...more] = news.photos;
 
   render(`
     <a class="back" href="#/news">Alle News</a>
@@ -213,6 +222,10 @@ async function viewNewsDetail(id) {
       <p class="article-meta">
         ${fullDate.format(new Date(news.publishedAt))}${news.author ? `, von ${escapeHtml(news.author)}` : ''}${edited ? ' (bearbeitet)' : ''}
       </p>
+      ${cover ? `
+        <button type="button" class="article-cover" data-photo="0" aria-label="Titelbild groß ansehen">
+          <img src="${escapeHtml(cover.url)}" alt="" width="${cover.width}" height="${cover.height}">
+        </button>` : ''}
       ${news.event ? `
         <div class="event-box">
           <span class="cal-mark" aria-hidden="true"></span>
@@ -224,12 +237,25 @@ async function viewNewsDetail(id) {
         </div>` : ''}
       ${news.summary ? `<p class="article-summary">${escapeHtml(news.summary)}</p>` : ''}
       <div class="article-body">${paragraphs(news.content)}</div>
+      ${more.length ? `
+        <ul class="article-gallery" aria-label="Weitere Bilder">
+          ${more.map((photo, i) => `
+            <li><button type="button" data-photo="${i + 1}" aria-label="Bild ${i + 2} groß ansehen">
+              <img src="${escapeHtml(photo.thumbUrl)}" alt="" loading="lazy">
+            </button></li>`).join('')}
+        </ul>` : ''}
     </article>
     ${isAdmin() ? `
       <div class="admin-actions">
         <a class="btn secondary" href="#/news/${news.id}/bearbeiten">Bearbeiten</a>
         <button class="btn danger" type="button" id="delete">Löschen</button>
       </div>` : ''}`, 'news');
+
+  // Titelbild und Galerie öffnen dieselbe Großansicht, jeweils beim angeklickten Bild.
+  main.querySelector('article').addEventListener('click', (clickEvent) => {
+    const button = clickEvent.target.closest('[data-photo]');
+    if (button) openLightbox(news.photos, Number(button.dataset.photo));
+  });
 
   document.getElementById('delete')?.addEventListener('click', async () => {
     const question = news.event
@@ -247,7 +273,7 @@ async function viewNewsEditor(id) {
     return;
   }
 
-  const news = id ? await api(`/api/news/${encodeURIComponent(id)}`) : { title: '', summary: '', content: '' };
+  const news = id ? await api(`/api/news/${encodeURIComponent(id)}`) : { title: '', summary: '', content: '', photos: [] };
 
   render(`
     <a class="back" href="${id ? `#/news/${news.id}` : '#/news'}">Abbrechen</a>
@@ -268,6 +294,7 @@ async function viewNewsEditor(id) {
         <span class="hint">Eine Leerzeile beginnt einen neuen Absatz.</span>
         <textarea id="content" name="content" required>${escapeHtml(news.content)}</textarea>
       </div>
+      ${photoFieldHtml('Bilder')}
       <fieldset class="event-fieldset">
         <div class="field check">
           <input id="withEvent" type="checkbox" ${news.event ? 'checked' : ''}>
@@ -285,6 +312,7 @@ async function viewNewsEditor(id) {
   const errorBox = document.getElementById('editor-error');
   const withEvent = document.getElementById('withEvent');
   const eventFields = document.getElementById('event-fields');
+  const photos = enablePhotoPicker({ existing: news.photos, max: 5, errorBox, place: 'in einen Beitrag', firstIsCover: true });
   enableAllDayToggle(form);
 
   withEvent.addEventListener('change', () => {
@@ -306,16 +334,28 @@ async function viewNewsEditor(id) {
     const button = form.querySelector('button[type="submit"]');
     button.disabled = true;
     const body = { title: fields.title.value, summary: fields.summary.value, content: fields.content.value, event };
+    let saved;
     try {
-      const saved = id
+      saved = id
         ? await api(`/api/news/${news.id}`, { method: 'PUT', body })
         : await api('/api/news', { method: 'POST', body });
-      location.hash = `#/news/${saved.id}`;
     } catch (error) {
       errorBox.innerHTML = error.status === 400
         ? `<p class="notice error">Titel und Text dürfen nicht leer sein${event ? ', und der Termin braucht einen Beginn' : ''}.</p>`
         : '<p class="notice error">Speichern hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
       button.disabled = false;
+      return;
+    }
+
+    // Der Text ist gespeichert; jetzt die Bilder. Scheitert eins, bleibt der Beitrag trotzdem bestehen.
+    try {
+      await photos.save(`/api/news/${saved.id}/photos`);
+      location.hash = `#/news/${saved.id}`;
+    } catch {
+      // Der Knopf bleibt gesperrt: ein zweites Absenden würde einen neuen Beitrag doppelt anlegen.
+      errorBox.innerHTML = `
+        <p class="notice error">Der Beitrag ist gespeichert, aber nicht alle Bilder konnten hochgeladen werden.
+          <a href="#/news/${saved.id}/bearbeiten">Bilder noch einmal versuchen</a></p>`;
     }
   });
 }
@@ -1152,7 +1192,95 @@ async function shrinkPhoto(file) {
   });
 }
 
-/** Großansicht der Fotos eines Aushangs. Ein <dialog> bringt Fokusfalle und Escape-Taste gleich mit. */
+/** Das Feld zur Fotoauswahl; verhalten wird es über enablePhotoPicker. */
+function photoFieldHtml(label) {
+  return `
+    <div class="field">
+      <label for="photos">${label}</label>
+      <span class="hint" id="photo-hint"></span>
+      <ul class="photo-picker" id="photo-picker"></ul>
+      <input id="photos" type="file" accept="image/jpeg,image/png" multiple>
+    </div>`;
+}
+
+/**
+ * Fotoauswahl für News und Brett: Vorschau, Entfernen, Obergrenze. Hochgeladen bzw. gelöscht wird
+ * erst mit save(), also beim Speichern des Formulars – „Abbrechen“ ändert nichts.
+ * firstIsCover markiert das erste Bild als Titelbild (News).
+ */
+function enablePhotoPicker({ existing, max, errorBox, place, firstIsCover = false }) {
+  const kept = [...existing];
+  const removed = [];
+  const added = []; // { blob, url } – url ist eine lokale Vorschau-Adresse
+  const picker = document.getElementById('photo-picker');
+  const fileInput = document.getElementById('photos');
+
+  const render = () => {
+    const total = kept.length + added.length;
+    const item = (src, attr, index) => `
+      <li>${firstIsCover && index === 0 ? '<span class="cover-tag">Titelbild</span>' : ''}<img src="${src}" alt="">
+        <button type="button" class="link-button" ${attr}>Entfernen</button></li>`;
+    picker.innerHTML = [
+      ...kept.map((photo, i) => item(escapeHtml(photo.thumbUrl), `data-kept="${photo.id}"`, i)),
+      ...added.map((photo, i) => item(photo.url, `data-added="${i}"`, kept.length + i)),
+    ].join('');
+    fileInput.hidden = total >= max;
+    document.getElementById('photo-hint').textContent = total >= max
+      ? `Mehr als ${max} Bilder gehen nicht. Entferne eins, um ein anderes zu wählen.`
+      : `Optional, bis zu ${max}.${firstIsCover ? ' Das erste Bild ist das Titelbild.' : ''} Bilder werden vor dem Hochladen verkleinert, Standortdaten aus dem Handy werden entfernt.`;
+  };
+
+  picker.addEventListener('click', (clickEvent) => {
+    const button = clickEvent.target.closest('button');
+    if (!button) return;
+    if (button.dataset.kept) {
+      const index = kept.findIndex((photo) => String(photo.id) === button.dataset.kept);
+      removed.push(...kept.splice(index, 1));
+    } else {
+      const [photo] = added.splice(Number(button.dataset.added), 1);
+      URL.revokeObjectURL(photo.url);
+    }
+    render();
+  });
+
+  fileInput.addEventListener('change', async () => {
+    errorBox.innerHTML = '';
+    const free = max - kept.length - added.length;
+    const files = [...fileInput.files];
+    fileInput.value = '';
+    for (const file of files.slice(0, free)) {
+      try {
+        const blob = await shrinkPhoto(file);
+        added.push({ blob, url: URL.createObjectURL(blob) });
+      } catch {
+        errorBox.innerHTML = `<p class="notice error">„${escapeHtml(file.name)}“ lässt sich nicht als Bild lesen. Bitte ein JPEG- oder PNG-Bild wählen.</p>`;
+      }
+    }
+    if (files.length > free) {
+      errorBox.innerHTML = `<p class="notice error">Es passen nur ${max} Bilder ${place} – die übrigen wurden weggelassen.</p>`;
+    }
+    render();
+  });
+
+  render();
+
+  return {
+    /** Erst entfernen, dann hochladen – so bleibt die Obergrenze auf dem Server nie überschritten. */
+    async save(photosUrl) {
+      for (const photo of removed) {
+        await api(`${photosUrl}/${photo.id}`, { method: 'DELETE' });
+      }
+      for (const photo of added) {
+        const upload = new FormData();
+        upload.append('file', photo.blob, 'foto.jpg');
+        await api(photosUrl, { method: 'POST', upload });
+        URL.revokeObjectURL(photo.url);
+      }
+    },
+  };
+}
+
+/** Großansicht von Fotos (Brett und News). Ein <dialog> bringt Fokusfalle und Escape-Taste gleich mit. */
 function openLightbox(photos, start = 0) {
   let dialog = document.getElementById('lightbox');
   if (!dialog) {
@@ -1361,12 +1489,7 @@ async function viewBoardEditor(id) {
         <span class="hint">Optional. Wie man dich erreicht, zum Beispiel Telefonnummer, E-Mail oder „Whg. 3, 2. OG“. Sehen alle angemeldeten Mitglieder.</span>
         <input id="contact" name="contact" maxlength="200" value="${escapeHtml(post.contact)}">
       </div>
-      <div class="field">
-        <label for="photos">Fotos</label>
-        <span class="hint" id="photo-hint"></span>
-        <ul class="photo-picker" id="photo-picker"></ul>
-        <input id="photos" type="file" accept="image/jpeg,image/png" multiple>
-      </div>
+      ${photoFieldHtml('Fotos')}
       <div class="field">
         <label for="durationDays">Wie lange soll der Aushang hängen?</label>
         <span class="hint">${durationHint}</span>
@@ -1381,62 +1504,7 @@ async function viewBoardEditor(id) {
   const form = document.getElementById('board-form');
   const errorBox = document.getElementById('editor-error');
 
-  // Fotos werden erst beim Speichern hochgeladen bzw. entfernt – „Abbrechen“ ändert also nichts.
-  const kept = [...post.photos];
-  const removed = [];
-  const added = []; // { blob, url } – url ist eine lokale Vorschau-Adresse
-  const picker = document.getElementById('photo-picker');
-  const fileInput = document.getElementById('photos');
-
-  const renderPhotos = () => {
-    const total = kept.length + added.length;
-    picker.innerHTML = [
-      ...kept.map((photo) => `
-        <li><img src="${escapeHtml(photo.thumbUrl)}" alt="">
-          <button type="button" class="link-button" data-kept="${photo.id}">Entfernen</button></li>`),
-      ...added.map((photo, index) => `
-        <li><img src="${photo.url}" alt="">
-          <button type="button" class="link-button" data-added="${index}">Entfernen</button></li>`),
-    ].join('');
-    fileInput.hidden = total >= options.maxPhotos;
-    document.getElementById('photo-hint').textContent = total >= options.maxPhotos
-      ? `Mehr als ${options.maxPhotos} Fotos gehen nicht. Entferne eins, um ein anderes zu wählen.`
-      : `Optional, bis zu ${options.maxPhotos}. Fotos werden vor dem Hochladen verkleinert, Standortdaten aus dem Handy werden entfernt.`;
-  };
-
-  picker.addEventListener('click', (clickEvent) => {
-    const button = clickEvent.target.closest('button');
-    if (!button) return;
-    if (button.dataset.kept) {
-      const index = kept.findIndex((photo) => String(photo.id) === button.dataset.kept);
-      removed.push(...kept.splice(index, 1));
-    } else {
-      const [photo] = added.splice(Number(button.dataset.added), 1);
-      URL.revokeObjectURL(photo.url);
-    }
-    renderPhotos();
-  });
-
-  fileInput.addEventListener('change', async () => {
-    errorBox.innerHTML = '';
-    const free = options.maxPhotos - kept.length - added.length;
-    const files = [...fileInput.files];
-    fileInput.value = '';
-    for (const file of files.slice(0, free)) {
-      try {
-        const blob = await shrinkPhoto(file);
-        added.push({ blob, url: URL.createObjectURL(blob) });
-      } catch {
-        errorBox.innerHTML = `<p class="notice error">„${escapeHtml(file.name)}“ lässt sich nicht als Foto lesen. Bitte ein JPEG- oder PNG-Bild wählen.</p>`;
-      }
-    }
-    if (files.length > free) {
-      errorBox.innerHTML = `<p class="notice error">Es passen nur ${options.maxPhotos} Fotos an einen Aushang – die übrigen wurden weggelassen.</p>`;
-    }
-    renderPhotos();
-  });
-
-  renderPhotos();
+  const photos = enablePhotoPicker({ existing: post.photos, max: options.maxPhotos, errorBox, place: 'an einen Aushang' });
 
   document.getElementById('delete')?.addEventListener('click', async () => {
     if (!confirm(`„${post.title}“ wirklich abnehmen? Der Aushang wird gelöscht.`)) return;
@@ -1474,15 +1542,7 @@ async function viewBoardEditor(id) {
 
     // Der Text ist gespeichert; jetzt die Fotos. Scheitert eins, bleibt der Aushang trotzdem bestehen.
     try {
-      for (const photo of removed) {
-        await api(`/api/board/${saved.id}/photos/${photo.id}`, { method: 'DELETE' });
-      }
-      for (const photo of added) {
-        const upload = new FormData();
-        upload.append('file', photo.blob, 'foto.jpg');
-        await api(`/api/board/${saved.id}/photos`, { method: 'POST', upload });
-        URL.revokeObjectURL(photo.url);
-      }
+      await photos.save(`/api/board/${saved.id}/photos`);
       location.hash = '#/brett';
     } catch {
       // Der Knopf bleibt gesperrt: ein zweites Absenden würde einen neuen Aushang doppelt anlegen.

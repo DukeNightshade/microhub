@@ -1,5 +1,6 @@
 package dev.microhub.board;
 
+import dev.microhub.photos.PhotoStorage;
 import dev.microhub.user.AccountDeletedEvent;
 import java.util.List;
 import org.springframework.context.event.EventListener;

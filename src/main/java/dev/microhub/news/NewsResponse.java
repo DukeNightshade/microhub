@@ -2,8 +2,12 @@ package dev.microhub.news;
 
 import dev.microhub.events.EventInfo;
 import java.time.Instant;
+import java.util.List;
 
-/** Eine News mit vollem Text, für die Detailansicht; event ist der Termin im Kalender, falls vorhanden. */
+/**
+ * Eine News mit vollem Text, für die Detailansicht; event ist der Termin im Kalender, falls
+ * vorhanden. photos[0] ist das Titelbild.
+ */
 public record NewsResponse(
         Long id,
         String title,
@@ -12,9 +16,10 @@ public record NewsResponse(
         String author,
         Instant publishedAt,
         Instant updatedAt,
-        EventInfo event) {
+        EventInfo event,
+        List<NewsPhotoItem> photos) {
 
-    static NewsResponse from(News news, EventInfo event) {
+    static NewsResponse from(News news, EventInfo event, List<NewsPhotoItem> photos) {
         return new NewsResponse(
                 news.getId(),
                 news.getTitle(),
@@ -23,6 +28,7 @@ public record NewsResponse(
                 news.getAuthor() == null ? null : news.getAuthor().getDisplayName(),
                 news.getPublishedAt(),
                 news.getUpdatedAt(),
-                event);
+                event,
+                photos);
     }
 }
