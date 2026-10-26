@@ -15,8 +15,13 @@
   <a class="skip-link" href="#main">Zum Inhalt springen</a>
 
   <header class="topbar">
-    <!-- Das Erkennungszeichen: ein blaues Emailleschild wie bei Hausnummern und Straßennamen -->
-    <a class="brand" href="#/news" aria-label="MicroHub Startseite">MicroHub</a>
+    <a class="brand" href="#/news" aria-label="MicroHub Startseite">
+      <!-- Fünf Tonnen am Straßenrand: News, Termine, Müll, Kontakte, Brett -->
+      <span class="brand-mark" aria-hidden="true">
+        <i style="--sec: var(--c-news)"></i><i style="--sec: var(--c-events)"></i><i style="--sec: var(--c-waste)"></i><i style="--sec: var(--c-contacts)"></i><i style="--sec: var(--c-board)"></i>
+      </span>
+      MicroHub
+    </a>
     <div class="account" id="account"></div>
   </header>
 

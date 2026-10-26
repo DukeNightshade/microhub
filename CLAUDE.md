@@ -146,13 +146,18 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   (form-urlencoded, für den Login) und `upload` (FormData, für den ICS-Import).
 - Alle Daten aus der API **immer escapen** (`escapeHtml`). Kein HTML aus der Datenbank
   rendern; Fließtext wird über Leerzeilen in Absätze geteilt.
-- **Gestaltung „Hausnummernschild“** (26.10.2026, mit dem Entwickler abgestimmt):
-  - Erkennungszeichen ist das **blaue Emailleschild** oben links (`.brand`, blaues Feld mit
-    weißer Zierlinie per `box-shadow`). Bewusst das einzige auffällige Element – alles andere
-    bleibt ruhig.
-  - Farben aus Treppenhaus und Ostseegegend: Kalkputz `--paper`, Emaille-Blau `--enamel` /
-    `--c-news`, Kiefer `--c-events`, Ostsee-Grau `--c-contacts`, Kork `--c-board`. Die
-    Tonnenfarben (`.wt-*`) gelten nur für die Müllpunkte.
+- **Gestaltung** (26.10.2026, mit dem Entwickler abgestimmt):
+  - **Logo:** fünf kleine Tonnen mit Deckel in den Bereichsfarben (`.brand-mark i`, Deckel per
+    `::before`) plus „MicroHub“ in der Schilderschrift. Ein blaues Emailleschild als Logo wurde
+    ausprobiert und vom Entwickler verworfen – das alte Strich-Logo gefiel ihm besser.
+  - Farben aus Treppenhaus und Ostseegegend: Kalkputz `--paper`, Emaille-Blau `--c-news`,
+    Kiefer `--c-events`, Ostsee-Grau `--c-contacts`, Kork `--c-board`; `--c-waste` (gelb) nur
+    noch im Logo. Die Tonnenfarben (`.wt-*`) gelten sonst nur für die Müllpunkte.
+  - **News:** neueste Meldung als Aufmacher (`.news-lead`), darunter luftige Zeilen mit
+    höchstens zwei Zeilen Kurzfassung; Datum relativ („Heute“, „Gestern“, Wochentag).
+  - **Brett:** Korkwand im Holzrahmen, Papierfarbe und Nadelfarbe je Art (Suche blau,
+    Biete grün, Tausche gelb), Fotos als Abzug mit weißem Rand, leeres Brett zeigt einen
+    Einladungs-Zettel.
   - Schriften: **Barlow Semi Condensed** (600/700) für Schild, Überschriften, Knöpfe, Reiter,
     Chips (`--font-sign`); **Atkinson Hyperlegible** (400/700) für Fließtext (`--font`).
   - Keine Großbuchstaben-Etiketten mit Sperrung, keine Mittelpunkte als Trenner (Kommas).

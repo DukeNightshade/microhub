@@ -24,8 +24,6 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => (
 const isAdmin = () => Boolean(state.user?.roles?.includes('ROLE_ADMIN'));
 
 const fullDate = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
-const dayOnly = new Intl.DateTimeFormat('de-DE', { day: 'numeric' });
-const monthShort = new Intl.DateTimeFormat('de-DE', { month: 'short' });
 const weekdayLong = new Intl.DateTimeFormat('de-DE', { weekday: 'long' });
 const timeOnly = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' });
 
@@ -130,23 +128,46 @@ function viewLogin() {
 /** Kurzer Termin-Hinweis für die News-Liste, z. B. „Termin: Sa, 31. Okt., 15:00 Uhr“. */
 const eventBadgeDate = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
 
-function newsItemHtml(item) {
-  const date = new Date(item.publishedAt);
-  const badge = item.event ? `
+const dayMonth = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'long' });
+
+/** „Heute“, „Gestern“, ein Wochentag in der letzten Woche, sonst das Datum – so liest man schneller. */
+function relativeDay(iso) {
+  const date = new Date(iso);
+  const startOf = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const days = Math.round((startOf(new Date()) - startOf(date)) / 86_400_000);
+  if (days === 0) return 'Heute';
+  if (days === 1) return 'Gestern';
+  if (days > 1 && days < 7) return weekdayLong.format(date);
+  return date.getFullYear() === new Date().getFullYear() ? dayMonth.format(date) : fullDate.format(date);
+}
+
+function newsEventBadge(item) {
+  if (!item.event) return '';
+  const start = new Date(item.event.startsAt);
+  return `
     <p class="news-event"><span class="cal-mark" aria-hidden="true"></span>Termin:
-      ${escapeHtml(eventBadgeDate.format(new Date(item.event.startsAt)))}${item.event.allDay ? '' : `, ${timeOnly.format(new Date(item.event.startsAt))} Uhr`}</p>` : '';
+      ${escapeHtml(eventBadgeDate.format(start))}${item.event.allDay ? '' : `, ${timeOnly.format(start)} Uhr`}</p>`;
+}
+
+/** Die neueste Meldung steht groß oben, damit man sofort sieht, was gerade los ist. */
+function newsLeadHtml(item) {
+  return `
+    <a class="news-lead" href="#/news/${item.id}">
+      <h2>${escapeHtml(item.title)}</h2>
+      ${item.summary ? `<p class="news-lead-summary">${escapeHtml(item.summary)}</p>` : ''}
+      ${newsEventBadge(item)}
+      <p class="news-meta"><time datetime="${escapeHtml(item.publishedAt)}">${relativeDay(item.publishedAt)}</time>${item.author ? `, von ${escapeHtml(item.author)}` : ''}</p>
+    </a>`;
+}
+
+function newsItemHtml(item) {
   return `
     <li>
       <a class="news-item" href="#/news/${item.id}">
-        <time class="news-date" datetime="${escapeHtml(item.publishedAt)}">
-          <span class="day">${dayOnly.format(date)}</span>
-          <span class="month">${monthShort.format(date)}</span>
-        </time>
-        <div>
-          <h2>${escapeHtml(item.title)}</h2>
-          ${item.summary ? `<p>${escapeHtml(item.summary)}</p>` : ''}
-          ${badge}
-        </div>
+        <h2>${escapeHtml(item.title)}</h2>
+        ${item.summary ? `<p class="news-summary">${escapeHtml(item.summary)}</p>` : ''}
+        ${newsEventBadge(item)}
+        <p class="news-meta"><time datetime="${escapeHtml(item.publishedAt)}">${relativeDay(item.publishedAt)}</time>${item.author ? `, von ${escapeHtml(item.author)}` : ''}</p>
       </a>
     </li>`;
 }
@@ -159,13 +180,15 @@ async function viewNewsList() {
   if (data.items.length === 0) {
     render(`
       ${pageHead('news', 'News', action)}
-      <p class="muted">Noch keine News veröffentlicht.${isAdmin() ? ' Schreib die erste über „News schreiben“.' : ''}</p>`, 'news');
+      <p class="muted">Hier erscheinen Neuigkeiten aus dem Haus.${isAdmin() ? ' Schreib die erste über „News schreiben“.' : ' Bisher gibt es noch keine.'}</p>`, 'news');
     return;
   }
 
+  const [lead, ...rest] = data.items;
   render(`
     ${pageHead('news', 'News', action)}
-    <ol class="news-list" id="news-list">${data.items.map(newsItemHtml).join('')}</ol>
+    ${newsLeadHtml(lead)}
+    <ol class="news-list" id="news-list">${rest.map(newsItemHtml).join('')}</ol>
     <div class="more" id="more">${data.hasMore ? '<button class="btn secondary" type="button">Ältere News laden</button>' : ''}</div>`, 'news');
 
   const more = document.getElementById('more');
@@ -1223,7 +1246,13 @@ async function viewBoardList() {
   if (posts.length === 0) {
     render(`
       ${pageHead('brett', 'Schwarzes Brett', action)}
-      <p class="muted">Am Brett hängt gerade nichts. Du suchst oder bietest etwas? Schreib den ersten Aushang.</p>
+      <ul class="board board-empty">
+        <li class="note">
+          <h2>Noch hängt hier nichts</h2>
+          <p>Du suchst etwas, bietest etwas an oder möchtest tauschen? Häng den ersten Aushang auf.</p>
+          <a class="btn small" href="#/brett/neu">Aushang schreiben</a>
+        </li>
+      </ul>
       ${expiredSection}`, 'brett');
     return;
   }

@@ -1,11 +1,11 @@
 /* =========================================================
-   MicroHub – Gestaltung „Hausnummernschild“
-   Erkennungszeichen ist das blaue Emailleschild, wie es an deutschen Häusern und Straßen
-   hängt. Die Farben kommen aus Treppenhaus und Ostseegegend: Kalkputz, Emaille-Blau, Kiefer,
-   Ostsee-Grau, Kork. Die Tonnenfarben gelten nur für die Müllpunkte, weil sie dort etwas bedeuten.
+   MicroHub – Grundgestaltung
+   Logo: fünf kleine Tonnen in den Bereichsfarben. Die Farben kommen aus Treppenhaus und
+   Ostseegegend: Kalkputz, Emaille-Blau, Kiefer, Ostsee-Grau, Kork. Die Tonnenfarben der
+   Abfallarten gelten sonst nur für die Müllpunkte, weil sie dort etwas bedeuten.
 
    Schriften liegen in /fonts und werden vom eigenen Server geladen (keine fremden Server, DSGVO):
-   - Barlow Semi Condensed: schmale Beschilderungsschrift für Schild, Überschriften, Knöpfe
+   - Barlow Semi Condensed: schmale Beschilderungsschrift für Logo, Überschriften, Knöpfe
    - Atkinson Hyperlegible: Fließtext, entworfen für gute Lesbarkeit auch bei Sehschwäche
    ========================================================= */
 
@@ -42,11 +42,9 @@
   --muted: #55636E;
   --line: #D0D6D2;
 
-  --enamel: #1F3B73;    /* Emaille-Blau des Schilds */
-  --enamel-ink: #FFFFFF;
-
   --c-news: #1F3B73;    /* Emaille-Blau */
   --c-events: #2F6B4F;  /* Kiefer */
+  --c-waste: #D9A400;   /* Gelbe Tonne – nur im Logo */
   --c-contacts: #5C717D; /* Ostsee-Grau */
   --c-board: #8A5A2B;   /* Kork */
 
@@ -69,7 +67,7 @@
     --ink: #E4E9EE;
     --muted: #9AA8B4;
     --line: #2B3745;
-    --enamel: #2C56A6;  /* heller als am Tag, sonst verschwindet das Schild im dunklen Grund */
+    --c-waste: #F0C640;
     --c-news: #7EA2E6;
     --c-events: #6DBB93;
     --c-contacts: #9DB0BC;
@@ -132,34 +130,46 @@ a { color: inherit; }
   border-bottom: 1px solid var(--line);
 }
 
-/*
- * Das Emailleschild: blaues Feld, schmaler blauer Rand, dann die weiße Zierlinie – genau wie
- * ein Hausnummern- oder Straßenschild. Die zwei inneren Schatten zeichnen Rand und Linie,
- * damit kein Bild nötig ist. Bewusst das einzige auffällige Element der Seite.
- */
+/* Logo: fünf kleine Tonnen in den Bereichsfarben, daneben der Name in der Schilderschrift */
 .brand {
   display: inline-flex;
-  align-items: center;
-  padding: .42rem 1.35rem .48rem;
-  border-radius: 10px;
-  background: var(--enamel);
-  box-shadow:
-    inset 0 0 0 4px var(--enamel),
-    inset 0 0 0 7px var(--enamel-ink),
-    0 1px 0 rgba(0, 0, 0, .25),
-    0 2px 6px rgba(0, 0, 0, .12);
-  color: var(--enamel-ink);
+  align-items: flex-end;
+  gap: .65rem;
   font-family: var(--font-sign);
-  font-size: 1.7rem;
+  font-size: 1.55rem;
   font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: .04em;
+  line-height: 1;
+  letter-spacing: .01em;
   text-decoration: none;
 }
-@media (max-width: 420px) {
-  .brand { font-size: 1.4rem; padding: .36rem 1.1rem .4rem; }
+.brand:focus-visible { outline-offset: 4px; }
+
+.brand-mark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 1.45rem;
+  padding-top: 3px; /* Platz für die Deckel */
 }
-.brand:focus-visible { outline-offset: 3px; }
+/* Jede Tonne: schmaler Körper, darüber ein etwas breiterer Deckel */
+.brand-mark i {
+  position: relative;
+  display: block;
+  width: 8px;
+  height: 100%;
+  border-radius: 1px 1px 2px 2px;
+  background: var(--sec);
+}
+.brand-mark i::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -1px;
+  right: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--sec);
+}
 
 .account {
   display: flex;
@@ -258,44 +268,43 @@ main:focus, main:focus-visible { outline: none; }
 .loading, .muted { color: var(--muted); }
 
 /* News-Liste: Datum links, Inhalt rechts */
-.news-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid var(--line);
-}
-
-.news-item {
+/* Aufmacher: die neueste Meldung groß auf einer hellen Fläche, mit der Bereichsfarbe am Rand */
+.news-lead {
   display: grid;
-  grid-template-columns: 3.25rem 1fr;
-  gap: 1rem;
-  padding: 1.1rem 0;
-  border-bottom: 1px solid var(--line);
+  gap: .6rem;
+  margin-bottom: 1.5rem;
+  padding: 1.4rem 1.5rem 1.3rem;
+  border-radius: var(--radius);
+  border-left: 5px solid var(--c-news);
+  background: var(--surface);
   text-decoration: none;
 }
+.news-lead h2 { margin: 0; font-size: clamp(1.7rem, 1.4rem + 1.2vw, 2.15rem); line-height: 1.08; }
+.news-lead-summary { margin: 0; font-size: 1.15rem; line-height: 1.5; max-width: 60ch; }
+.news-lead:hover h2 { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
 
-.news-date {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1.1;
-  padding-top: .15rem;
+/* Die übrigen Meldungen: luftige Zeilen, Kurzfassung höchstens zwei Zeilen */
+.news-list { list-style: none; margin: 0; padding: 0; }
+.news-item {
+  display: grid;
+  gap: .35rem;
+  padding: 1.15rem .25rem;
+  border-top: 1px solid var(--line);
+  text-decoration: none;
 }
-.news-date .day {
-  font-family: var(--font-sign);
-  font-size: 1.85rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.news-date .month { font-size: .9rem; color: var(--muted); }
-
-.news-item h2 {
-  margin: 0 0 .25rem;
-  font-size: 1.4rem;
-  line-height: 1.15;
-}
+.news-list li:last-child .news-item { border-bottom: 1px solid var(--line); }
+.news-item h2 { margin: 0; font-size: 1.4rem; line-height: 1.15; }
 .news-item:hover h2 { text-decoration: underline; text-underline-offset: 3px; }
-.news-item p { margin: 0; color: var(--muted); }
+.news-summary {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.news-meta { margin: 0; color: var(--muted); font-size: .92rem; }
 
 /* Umschalter zwischen kommenden und vergangenen Einträgen */
 .list-switch { margin: -.5rem 0 1.25rem; }
@@ -514,7 +523,7 @@ a.cal-row:hover strong, a.cal-row:hover > span:last-child { text-decoration: und
 .cal-dot .cal-mark, .cal-dot .waste-dot { width: .55rem; height: .55rem; }
 
 /* Termin zu einem News-Beitrag: Hinweis in der Liste und Kasten im Beitrag */
-.news-item p.news-event { display: flex; align-items: center; gap: .4rem; margin-top: .3rem; font-size: .9rem; }
+.news-event { display: flex; align-items: center; gap: .45rem; margin: 0; color: var(--c-events); font-weight: 700; font-size: .95rem; }
 .news-event .cal-mark { width: .65rem; height: .65rem; }
 .event-box {
   display: flex;
@@ -613,55 +622,85 @@ select {
 }
 .filter[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 600; }
 
-/* Die Korkwand: zwei versetzte Punktmuster ergeben eine ruhige Körnung ohne Bilddatei */
+/*
+ * Die Korkwand im Holzrahmen. Drei versetzte Punktmuster ergeben eine unregelmäßige Körnung
+ * ohne Bilddatei; der innere Schatten lässt den Kork etwas tiefer als den Rahmen liegen.
+ */
 .board {
-  --cork: #C9A276;
-  --cork-grain: rgba(90, 55, 20, .18);
-  --note: #FFFDF5;
+  --cork: #C49A6C;
+  --cork-grain: rgba(90, 55, 20, .2);
+  --cork-light: rgba(255, 240, 210, .18);
+  --wood: #74502F;
   list-style: none;
   margin: 0;
-  padding: 1rem;
+  padding: 1.25rem;
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
   grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
   align-items: start;
-  border-radius: var(--radius);
+  border: 11px solid var(--wood);
+  border-radius: 8px;
   background-color: var(--cork);
   background-image:
-    radial-gradient(var(--cork-grain) 1px, transparent 1.5px),
-    radial-gradient(var(--cork-grain) 1px, transparent 1.5px);
-  background-size: 9px 9px, 13px 13px;
-  background-position: 0 0, 4px 6px;
+    radial-gradient(var(--cork-grain) 1px, transparent 1.6px),
+    radial-gradient(var(--cork-grain) 1px, transparent 1.4px),
+    radial-gradient(var(--cork-light) 1px, transparent 1.6px);
+  background-size: 9px 9px, 13px 13px, 17px 17px;
+  background-position: 0 0, 4px 6px, 8px 3px;
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, .35),
+    inset 0 0 0 1px rgba(0, 0, 0, .25),
+    0 1px 0 rgba(255, 255, 255, .5);
 }
 
+/* Papierfarbe und Nadel je nach Art: man erkennt Suche, Biete, Tausche schon von Weitem */
 .note {
+  --paper-note: #FFFDF5;
+  --pin: #B3261E;
   position: relative;
   display: grid;
-  gap: .4rem;
-  padding: 1.4rem 1.1rem 1rem;
-  background: var(--note);
+  gap: .45rem;
+  padding: 1.5rem 1.15rem 1.05rem;
+  background: var(--paper-note);
   color: #17232B;
   border-radius: 2px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .18), 0 4px 10px rgba(0, 0, 0, .12);
-  transform: rotate(-.6deg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .2), 0 6px 14px -4px rgba(0, 0, 0, .25);
+  transform: rotate(-.7deg);
 }
-.note:nth-child(even) { transform: rotate(.5deg); }
-.note:nth-child(3n) { transform: rotate(-.2deg); }
+.note[data-kind="SUCHE"]   { --paper-note: #EEF3FB; --pin: #1F5FA8; }
+.note[data-kind="BIETE"]   { --paper-note: #EEF6F0; --pin: #2F7A52; }
+.note[data-kind="TAUSCHE"] { --paper-note: #FBF4E1; --pin: #C98A12; }
+.note:nth-child(even) { transform: rotate(.6deg); }
+.note:nth-child(3n) { transform: rotate(-.25deg); }
 .note[hidden] { display: none; }
 
-/* Die Pinnnadel */
+/* Die Pinnnadel: runder Kopf mit Glanzpunkt, darunter ein kleiner Schatten auf dem Papier */
 .note::before {
   content: "";
   position: absolute;
-  top: .45rem;
+  top: .4rem;
   left: 50%;
-  width: .7rem;
-  height: .7rem;
-  margin-left: -.35rem;
+  width: .8rem;
+  height: .8rem;
+  margin-left: -.4rem;
   border-radius: 50%;
-  background: #B3261E;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .7) 0 18%, transparent 22%), var(--pin);
+  box-shadow: 1px 2px 2px rgba(0, 0, 0, .35);
+  z-index: 1; /* über einem Foto, das bis an den oberen Rand reicht */
 }
+
+/* Fotos als Abzug mit weißem Rand */
+.note .note-photo {
+  padding: 5px 5px 14px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+}
+.note .note-photo img { border-radius: 0; }
+
+/* Leeres Brett: ein einzelner Zettel lädt zum ersten Aushang ein */
+.board-empty { grid-template-columns: minmax(0, 22rem); justify-content: center; padding-block: 2.5rem; }
+.board-empty .note { text-align: center; justify-items: center; }
+.board-empty .note p { color: #56636B; }
 
 .note h2 { margin: 0; font-size: 1.35rem; line-height: 1.15; overflow-wrap: anywhere; }
 .note p { margin: 0; }
@@ -704,7 +743,12 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; font-weight: 600; }
 .choice input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
 
 @media (prefers-color-scheme: dark) {
-  .board { --cork: #5E4730; --cork-grain: rgba(0, 0, 0, .28); --note: #EDE7D6; }
+  /* Nachts etwas gedämpfter, damit die Zettel nicht grell aus dem dunklen Grund leuchten */
+  .board { --cork: #6A4F33; --cork-grain: rgba(0, 0, 0, .3); --cork-light: rgba(255, 230, 190, .07); --wood: #3E2A18; }
+  .note { --paper-note: #E9E3D2; }
+  .note[data-kind="SUCHE"]   { --paper-note: #DCE4F0; }
+  .note[data-kind="BIETE"]   { --paper-note: #DCE8DF; }
+  .note[data-kind="TAUSCHE"] { --paper-note: #ECE3CA; }
 }
 
 /* Foto oben auf dem Zettel; ein Knopf, damit es auch per Tastatur groß aufgeht */
