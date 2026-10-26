@@ -33,6 +33,18 @@ public class AdminController {
         return adminService.updateCode(id, request);
     }
 
+    @DeleteMapping("/codes/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteCode(@PathVariable long id) {
+        adminService.deleteCode(id);
+    }
+
+    @DeleteMapping("/members/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteMember(@PathVariable long id) {
+        adminService.deleteMember(id);
+    }
+
     @GetMapping("/members")
     public List<AdminDtos.MemberItem> members(Authentication authentication) {
         return adminService.members(authentication.getName());

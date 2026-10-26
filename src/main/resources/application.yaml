@@ -41,3 +41,6 @@ microhub:
   board:
     # Wann abgelaufene Aushänge gelöscht werden (Sekunde Minute Stunde Tag Monat Wochentag)
     cleanup-cron: ${BOARD_CLEANUP_CRON:0 30 3 * * *}
+  users:
+    # Wann seit 14 Tagen gesperrte Konten und Freischaltcodes gelöscht werden
+    cleanup-cron: ${USER_CLEANUP_CRON:0 45 3 * * *}

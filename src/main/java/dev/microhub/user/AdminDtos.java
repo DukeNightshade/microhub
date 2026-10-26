@@ -19,12 +19,14 @@ public final class AdminDtos {
     public record UpdateCode(boolean revoked) {
     }
 
+    /** deletionDate: wann ein gesperrter Code automatisch verschwindet (sonst leer). */
     public record CodeItem(Long id, String code, String label, int maxUses, int usedCount, boolean revoked,
-                           boolean usable, Instant createdAt) {
+                           boolean usable, Instant createdAt, Instant deletionDate) {
 
         static CodeItem from(InviteCode code) {
             return new CodeItem(code.getId(), Secrets.formatCode(code.getCode()), code.getLabel(),
-                    code.getMaxUses(), code.getUsedCount(), code.isRevoked(), code.isUsable(), code.getCreatedAt());
+                    code.getMaxUses(), code.getUsedCount(), code.isRevoked(), code.isUsable(), code.getCreatedAt(),
+                    code.getRevokedAt() == null ? null : code.getRevokedAt().plus(AdminService.BLOCKED_RETENTION));
         }
     }
 
@@ -32,14 +34,16 @@ public final class AdminDtos {
     public record UpdateMember(Boolean enabled, Role role) {
     }
 
+    /** deletionDate: wann ein gesperrtes Konto automatisch gelöscht wird (sonst leer). */
     public record MemberItem(Long id, String username, String displayName, String apartment, Role role,
-                             boolean enabled, boolean mustChangePassword, Instant createdAt, boolean self) {
+                             boolean enabled, boolean mustChangePassword, Instant createdAt, boolean self,
+                             Instant deletionDate) {
 
         static MemberItem from(AppUser user, String currentUsername) {
-            return new MemberItem(user.getId(), user.getUsername(), user.getDisplayName(),
-                    user.getInviteCode() == null ? null : user.getInviteCode().getLabel(),
+            return new MemberItem(user.getId(), user.getUsername(), user.getDisplayName(), user.getApartment(),
                     user.getRole(), user.isEnabled(), user.isMustChangePassword(), user.getCreatedAt(),
-                    user.getUsername().equalsIgnoreCase(currentUsername));
+                    user.getUsername().equalsIgnoreCase(currentUsername),
+                    user.getBlockedAt() == null ? null : user.getBlockedAt().plus(AdminService.BLOCKED_RETENTION));
         }
     }
 

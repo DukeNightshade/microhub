@@ -42,9 +42,14 @@ public class AccountService {
 
         AppUser user = new AppUser(username, null, passwordEncoder.encode(request.password()),
                 request.displayName().strip(), Role.USER);
-        user.setInviteCode(code);
-        code.redeem();
+        user.setApartment(code.getLabel());
         userRepository.save(user);
+
+        // Ein aufgebrauchter Code hat keinen Zweck mehr und verschwindet sofort.
+        code.redeem();
+        if (code.isUsedUp()) {
+            inviteCodeRepository.delete(code);
+        }
     }
 
     public void changePassword(String username, AccountRequests.ChangePassword request) {
@@ -72,6 +77,17 @@ public class AccountService {
         if (user.getRole() == Role.ADMIN && userRepository.countByRoleAndEnabledTrue(Role.ADMIN) <= 1) {
             throw new ConflictException("Du bist der einzige Admin. Mach vorher jemand anderen zum Admin.");
         }
+        deleteWithContent(user);
+    }
+
+    /**
+     * Löscht ein Konto samt allem, was daran hängt. Das Event lässt andere Module aufräumen
+     * (z. B. die Fotodateien am Brett), die Datenbank erledigt den Rest per Fremdschlüssel.
+     * Wird auch von der Verwaltung und dem nächtlichen Aufräum-Job benutzt.
+     * Öffentlich, weil Spring Aufrufe nur bei public-Methoden an das echte Objekt hinter dem
+     * Transaktions-Proxy weiterreicht – sonst wären die Felder im Proxy leer (NullPointerException).
+     */
+    public void deleteWithContent(AppUser user) {
         events.publishEvent(new AccountDeletedEvent(user.getId()));
         userRepository.delete(user);
     }

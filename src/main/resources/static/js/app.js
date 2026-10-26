@@ -1447,17 +1447,21 @@ async function viewAdminMembers(notice = '') {
   const rows = members.map((member) => {
     const tags = [
       member.role === 'ADMIN' ? '<span class="tag">Admin</span>' : '',
-      member.enabled ? '' : '<span class="tag tag-warn">Gesperrt</span>',
+      member.enabled ? '' : `<span class="tag tag-warn">Gesperrt – wird am ${dayAndMonth.format(new Date(member.deletionDate))} gelöscht</span>`,
       member.mustChangePassword ? '<span class="tag">Muss Passwort ändern</span>' : '',
     ].join('');
+    // Gesperrte Konten: entsperren oder endgültig löschen – alles andere ergibt dann keinen Sinn.
     const actions = member.self
       ? '<span class="muted">Das bist du</span>'
-      : `
-        <button type="button" class="btn small secondary" data-action="reset" data-id="${member.id}">Passwort zurücksetzen</button>
-        <button type="button" class="btn small secondary" data-action="${member.enabled ? 'block' : 'unblock'}" data-id="${member.id}">
-          ${member.enabled ? 'Sperren' : 'Entsperren'}</button>
-        <button type="button" class="btn small secondary" data-action="${member.role === 'ADMIN' ? 'demote' : 'promote'}" data-id="${member.id}">
-          ${member.role === 'ADMIN' ? 'Admin-Rechte entziehen' : 'Zum Admin machen'}</button>`;
+      : member.enabled
+        ? `
+          <button type="button" class="btn small secondary" data-action="reset" data-id="${member.id}">Passwort zurücksetzen</button>
+          <button type="button" class="btn small secondary" data-action="block" data-id="${member.id}">Sperren</button>
+          <button type="button" class="btn small secondary" data-action="${member.role === 'ADMIN' ? 'demote' : 'promote'}" data-id="${member.id}">
+            ${member.role === 'ADMIN' ? 'Admin-Rechte entziehen' : 'Zum Admin machen'}</button>`
+        : `
+          <button type="button" class="btn small secondary" data-action="unblock" data-id="${member.id}">Entsperren</button>
+          <button type="button" class="btn small danger" data-action="delete" data-id="${member.id}">Jetzt endgültig löschen</button>`;
     return `
       <li class="member">
         <div class="member-head"><strong>${escapeHtml(member.displayName)}</strong>${tags}</div>
@@ -1481,8 +1485,10 @@ async function viewAdminMembers(notice = '') {
 
     const questions = {
       reset: `Passwort von ${name} zurücksetzen? Die Person wird überall abgemeldet und bekommt ein Einmal-Passwort.`,
-      block: `${name} sperren? Die Person wird sofort abgemeldet und kann sich nicht mehr anmelden. Ihre Aushänge bleiben.`,
-      unblock: `${name} wieder entsperren?`,
+      block: `${name} sperren? Die Person wird sofort abgemeldet und kann sich nicht mehr anmelden. `
+        + 'Nach 14 Tagen wird das Konto samt Aushängen und Fotos automatisch gelöscht – bis dahin kannst du es wieder entsperren.',
+      unblock: `${name} wieder entsperren? Das Konto wird dann nicht gelöscht.`,
+      delete: `${name} jetzt endgültig löschen? Konto, Aushänge und Fotos verschwinden sofort. Das lässt sich nicht rückgängig machen.`,
       promote: `${name} zum Admin machen? Admins können Inhalte, Codes und Mitglieder verwalten.`,
       demote: `${name} die Admin-Rechte entziehen?`,
     };
@@ -1499,6 +1505,11 @@ async function viewAdminMembers(notice = '') {
           </div>`);
         return;
       }
+      if (button.dataset.action === 'delete') {
+        await api(`/api/admin/members/${member.id}`, { method: 'DELETE' });
+        await viewAdminMembers(`<p class="notice">${escapeHtml(name)} wurde gelöscht.</p>`);
+        return;
+      }
       const body = {
         block: { enabled: false }, unblock: { enabled: true },
         promote: { role: 'ADMIN' }, demote: { role: 'USER' },
@@ -1511,9 +1522,9 @@ async function viewAdminMembers(notice = '') {
   });
 }
 
+/** Aufgebrauchte Codes gibt es nicht mehr – das Backend löscht sie bei der zweiten Registrierung. */
 function codeStatus(code) {
-  if (code.revoked) return '<span class="tag tag-warn">Gesperrt</span>';
-  if (!code.usable) return '<span class="tag">Verbraucht</span>';
+  if (code.revoked) return `<span class="tag tag-warn">Gesperrt – wird am ${dayAndMonth.format(new Date(code.deletionDate))} gelöscht</span>`;
   return '<span class="tag tag-ok">Frei</span>';
 }
 
@@ -1529,8 +1540,11 @@ async function viewAdminCodes(notice = '') {
         <div class="member-head"><strong>${escapeHtml(code.label)}</strong>${codeStatus(code)}</div>
         <p class="muted"><code class="secret">${escapeHtml(code.code)}</code> · ${code.usedCount} von ${code.maxUses} benutzt</p>
       </div>
-      <button type="button" class="btn small secondary" data-id="${code.id}" data-revoked="${!code.revoked}">
-        ${code.revoked ? 'Entsperren' : 'Sperren'}</button>
+      <div class="code-actions">
+        <button type="button" class="btn small secondary" data-id="${code.id}" data-revoked="${!code.revoked}">
+          ${code.revoked ? 'Entsperren' : 'Sperren'}</button>
+        ${code.revoked ? `<button type="button" class="btn small danger" data-id="${code.id}" data-delete>Jetzt löschen</button>` : ''}
+      </div>
     </li>`).join('');
 
   render(`
@@ -1541,7 +1555,8 @@ async function viewAdminCodes(notice = '') {
       <form class="form" id="code-form">
         <div class="field">
           <label for="labels">Für welche Wohnungen?</label>
-          <span class="hint">Eine Wohnung pro Zeile, zum Beispiel „Whg. 3“ oder „EG links“. Jeder Code gilt für zwei Personen und läuft nicht ab.</span>
+          <span class="hint">Eine Wohnung pro Zeile, zum Beispiel „Whg. 3“ oder „EG links“. Jeder Code gilt für zwei Personen und läuft nicht ab.
+            Haben sich beide registriert, verschwindet der Code automatisch.</span>
           <textarea id="labels" name="labels" class="short-text" required></textarea>
         </div>
         <div><button class="btn" type="submit">Codes erzeugen</button></div>
@@ -1572,8 +1587,15 @@ async function viewAdminCodes(notice = '') {
   document.getElementById('code-list')?.addEventListener('click', async (clickEvent) => {
     const button = clickEvent.target.closest('button[data-id]');
     if (!button) return;
+    if (button.hasAttribute('data-delete')) {
+      if (!confirm('Code jetzt endgültig löschen? Bestehende Konten bleiben erhalten.')) return;
+      await api(`/api/admin/codes/${button.dataset.id}`, { method: 'DELETE' });
+      await viewAdminCodes('<p class="notice">Der Code wurde gelöscht.</p>');
+      return;
+    }
     const revoked = button.dataset.revoked === 'true';
-    if (revoked && !confirm('Code sperren? Damit kann sich niemand mehr registrieren. Bestehende Konten bleiben.')) return;
+    if (revoked && !confirm('Code sperren? Damit kann sich niemand mehr registrieren. Bestehende Konten bleiben. '
+      + 'Nach 14 Tagen wird der Code automatisch gelöscht – bis dahin kannst du ihn wieder entsperren.')) return;
     await api(`/api/admin/codes/${button.dataset.id}`, { method: 'PUT', body: { revoked } });
     await viewAdminCodes();
   });

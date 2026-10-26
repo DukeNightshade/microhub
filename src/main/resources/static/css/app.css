@@ -724,6 +724,7 @@ textarea.short-text { min-height: 7rem; }
 }
 .code-row p { margin: .15rem 0 0; }
 .code-pick input { width: 1.2rem; height: 1.2rem; }
+.code-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .4rem; }
 
 .tag-warn { border-color: var(--danger); color: var(--danger); }
 .tag-ok { border-color: var(--c-events); color: var(--c-events); }

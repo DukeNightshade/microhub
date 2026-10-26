@@ -30,6 +30,10 @@ public class InviteCode {
     @Column(nullable = false)
     private boolean revoked;
 
+    /** Seit wann gesperrt; 14 Tage danach löscht der AccountCleanupJob den Code. */
+    @Column(name = "revoked_at")
+    private Instant revokedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -53,7 +57,17 @@ public class InviteCode {
         usedCount++;
     }
 
+    /** Aufgebrauchte Codes werden sofort gelöscht, siehe AccountService.register. */
+    public boolean isUsedUp() {
+        return usedCount >= maxUses;
+    }
+
     void setRevoked(boolean revoked) {
+        if (!revoked) {
+            revokedAt = null;
+        } else if (!this.revoked) {
+            revokedAt = Instant.now();
+        }
         this.revoked = revoked;
     }
 
@@ -63,5 +77,6 @@ public class InviteCode {
     public int getMaxUses() { return maxUses; }
     public int getUsedCount() { return usedCount; }
     public boolean isRevoked() { return revoked; }
+    public Instant getRevokedAt() { return revokedAt; }
     public Instant getCreatedAt() { return createdAt; }
 }

@@ -1,8 +1,8 @@
 package dev.microhub.user;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AppUserRepository extends JpaRepository<AppUser, Long> {
@@ -16,7 +16,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     /** Für die Regel „es muss immer mindestens ein aktiver Admin bleiben“. */
     long countByRoleAndEnabledTrue(Role role);
 
-    /** Mitgliederliste für den Admin; der Code wird für die Wohnung mitgeladen. */
-    @EntityGraph(attributePaths = "inviteCode")
     List<AppUser> findAllByOrderByDisplayNameAsc();
+
+    /** Für den nächtlichen Aufräum-Job: lange genug gesperrte Konten. */
+    List<AppUser> findByEnabledFalseAndBlockedAtBefore(Instant blockedBefore);
 }

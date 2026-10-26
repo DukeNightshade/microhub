@@ -33,9 +33,16 @@ public class AppUser {
     private Instant createdAt = Instant.now();
 
     /** Über welchen Freischaltcode (also welche Wohnung) jemand kam; leer beim ersten Admin. */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "invite_code_id")
-    private InviteCode inviteCode;
+    /**
+     * Wohnung aus dem Freischaltcode, z. B. „Whg. 3“; leer beim ersten Admin. Steht am Konto
+     * selbst, weil aufgebrauchte Codes gelöscht werden.
+     */
+    @Column(length = 100)
+    private String apartment;
+
+    /** Seit wann gesperrt; 14 Tage danach löscht der AccountCleanupJob das Konto. */
+    @Column(name = "blocked_at")
+    private Instant blockedAt;
 
     /** Nach dem Zurücksetzen durch den Admin muss das Einmal-Passwort sofort ersetzt werden. */
     @Column(name = "must_change_password", nullable = false)
@@ -61,13 +68,23 @@ public class AppUser {
     public Role getRole() { return role; }
     public boolean isEnabled() { return enabled; }
     public Instant getCreatedAt() { return createdAt; }
-    public InviteCode getInviteCode() { return inviteCode; }
+    public String getApartment() { return apartment; }
+    public Instant getBlockedAt() { return blockedAt; }
     public boolean isMustChangePassword() { return mustChangePassword; }
 
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public void setRole(Role role) { this.role = role; }
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
-    public void setInviteCode(InviteCode inviteCode) { this.inviteCode = inviteCode; }
+    public void setApartment(String apartment) { this.apartment = apartment; }
+
+    /** Erneutes Sperren eines schon gesperrten Kontos verlängert die Löschfrist nicht. */
+    public void setEnabled(boolean enabled) {
+        if (enabled) {
+            blockedAt = null;
+        } else if (this.enabled) {
+            blockedAt = Instant.now();
+        }
+        this.enabled = enabled;
+    }
     public void setMustChangePassword(boolean mustChangePassword) { this.mustChangePassword = mustChangePassword; }
 }

@@ -1,6 +1,7 @@
 package dev.microhub.user;
 
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,4 +19,7 @@ public interface InviteCodeRepository extends JpaRepository<InviteCode, Long> {
     boolean existsByCode(String code);
 
     List<InviteCode> findAllByOrderByLabelAscIdAsc();
+
+    /** Für den nächtlichen Aufräum-Job: lange genug gesperrte Codes. */
+    List<InviteCode> findByRevokedTrueAndRevokedAtBefore(Instant revokedBefore);
 }

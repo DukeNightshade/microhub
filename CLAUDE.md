@@ -55,7 +55,8 @@ src/main/java/dev/microhub/
 │                InviteCode, InviteCodeRepository, Secrets, PasswordRules,
 │                AccountService/-Controller/-Requests („Mein Konto“),
 │                AdminService/-Controller/-Dtos (Codes, Mitglieder),
-│                SessionTerminator, MustChangePasswordInterceptor, AccountDeletedEvent
+│                SessionTerminator, MustChangePasswordInterceptor, AccountDeletedEvent,
+│                AccountCleanupJob
 ├── news/        News, NewsRepository, NewsService, NewsController,
 │                NewsRequest, NewsResponse, NewsListItem, NewsPage
 ├── events/      CalendarEvent, EventRepository, EventService, EventController,
@@ -71,7 +72,7 @@ src/main/java/dev/microhub/
 └── push/        (geplant) Web Push, Abos, Scheduler
 src/main/resources/
 ├── application.yaml
-├── db/migration/V1__init.sql … V6__invite_code.sql
+├── db/migration/V1__init.sql … V7__cleanup_blocked_and_used.sql
 └── static/      index.html, css/app.css, js/api.js, js/app.js
 ```
 
@@ -87,8 +88,9 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
 - **Ausgeführte Migrationen nie ändern.** Änderungen nur als neue Datei `V2__…sql` usw.
   Ausgeführt sind `V1` bis `V6` (`V2` `contact.public`, `V3` `board_post.kind`,
   `V4` `board_post.contact`, `V5` `board_post.revived` + Tabelle `board_photo`,
-  `V6` Tabelle `invite_code` + `app_user.invite_code_id`/`must_change_password`);
-  die nächste Migration heißt `V7__…`.
+  `V6` Tabelle `invite_code` + `app_user.invite_code_id`/`must_change_password`,
+  `V7` `app_user.apartment`/`blocked_at`, `invite_code.revoked_at`, `invite_code_id` entfernt);
+  die nächste Migration heißt `V8__…`.
 - `open-in-view: false` → Lazy-Relationen nur innerhalb von `@Transactional` auflösen
   (oder `@EntityGraph` nutzen, siehe `NewsRepository`).
 - Text-Spalten (`TEXT`) in Entities mit `@Column(columnDefinition = "text")` mappen.
@@ -182,9 +184,12 @@ getestet. Damit sind alle fünf Bereiche fertig.
 
 **Zustand der lokalen Umgebung:**
 - Datenbank enthält die **185 echten Abfuhrtermine** aus den ICS-Dateien des Landkreises
-  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen. Flyway steht auf `V6`.
-- Genau **ein Benutzer**: `admin` (ROLE_ADMIN), keine Freischaltcodes.
-  News, Termine, Kontakte und Brett sind leer.
+  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen. Flyway steht auf `V7`.
+- Benutzer `admin` plus **Testdaten des Entwicklers** (Konto „Melonie“ gesperrt, Codes „Test“
+  und „EG re“, ein Aushang mit Foto) – nicht ungefragt löschen.
+- Der Entwickler startet die App oft selbst in IntelliJ (Port 8080, baut bei Änderungen
+  automatisch neu). Eigene Testinstanzen auf **Port 8081** mit
+  `--spring.docker.compose.lifecycle-management=start-only` starten und nur sie beenden.
 - Fotos landen lokal in `data/uploads/` im Projektordner (per `.gitignore` ausgeschlossen).
 - Der Container `microhub-postgres-1` läuft oder lässt sich mit dem App-Start neu hochziehen.
 
@@ -202,6 +207,11 @@ damit echte Nutzer starten können; PWA und Push danach.
      (Datensparsamkeit). Danach wird automatisch angemeldet.
    - Codes **laufen nicht ab** (daher kein `expires_at`), der Admin kann sie sperren. Format
      `XXXX-XXXX-XXXX` ohne verwechselbare Zeichen; Eingabe in beliebiger Schreibweise.
+   - **Aufräumen** (26.10.2026, nachgeschärft): Ein **aufgebrauchter Code** wird bei der zweiten
+     Registrierung sofort gelöscht (die Wohnung steht deshalb in `app_user.apartment`).
+     **Gesperrte Codes und gesperrte Mitglieder** kann der Admin sofort löschen; sonst löscht
+     sie `AccountCleanupJob` **14 Tage nach dem Sperren** (nachts 3:45 Uhr). Entsperren stoppt
+     die Frist. Ein gelöschtes Mitglied verliert auch seine Aushänge und Fotos.
    - Verteilung über **Zettel zum Ausdrucken** (einer pro Wohnung, mit Anleitung).
    - **Passwort vergessen:** Der Admin erzeugt ein Einmal-Passwort, das beim nächsten Anmelden
      sofort ersetzt werden muss. Kein Mailversand.
@@ -294,7 +304,10 @@ damit echte Nutzer starten können; PWA und Push danach.
 ## Bekannte Stolperstellen
 
 - Den Aufräum-Job testet man, indem man die App mit `BOARD_CLEANUP_CRON="*/15 * * * * *"`
-  startet (alle 15 Sekunden) und `expires_at` in der DB zurückdatiert.
+  startet (alle 15 Sekunden) und `expires_at` in der DB zurückdatiert. Für Konten/Codes
+  entsprechend `USER_CLEANUP_CRON` und `blocked_at`/`revoked_at`.
+- Methoden eines `@Transactional`-Service, die andere Beans aufrufen, müssen `public` sein –
+  sonst landet der Aufruf beim Spring-Proxy mit leeren Feldern (NullPointerException).
 - Bilddateien werden über `TransactionSynchronization` erst nach dem Commit gelöscht bzw. bei
   einem Rollback wieder entfernt – Datenbank und Upload-Ordner bleiben so beieinander.
 
