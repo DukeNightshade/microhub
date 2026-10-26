@@ -1,6 +1,7 @@
 import { api, ApiError } from './api.js';
 
 const SECTIONS = {
+  start:    { title: 'Start',           color: '--ink' },
   news:     { title: 'News',            color: '--c-news' },
   kalender: { title: 'Kalender',        color: '--c-events' },
   kontakte: { title: 'Kontakte',        color: '--c-contacts' },
@@ -44,7 +45,7 @@ function pageHead(section, title, actionHtml = '') {
 }
 
 /** Kalender und Brett brauchen am Desktop mehr Platz als Textseiten. */
-const WIDE_SECTIONS = new Set(['kalender', 'brett']);
+const WIDE_SECTIONS = new Set(['start', 'kalender', 'brett']);
 
 function render(html, section) {
   main.style.setProperty('--sec', `var(${SECTIONS[section]?.color ?? '--ink'})`);
@@ -111,7 +112,7 @@ function viewLogin() {
     try {
       await api('/api/auth/login', { method: 'POST', form: Object.fromEntries(new FormData(form)) });
       await loadUser(); // holt nach dem Login ein neues CSRF-Token
-      location.hash = state.user?.mustChangePassword ? '#/konto' : state.returnTo || '#/news';
+      location.hash = state.user?.mustChangePassword ? '#/konto' : state.returnTo || '#/start';
       state.returnTo = null;
     } catch (error) {
       // Die API unterscheidet bewusst nicht zwischen falschem Passwort und gesperrtem Konto.
@@ -121,6 +122,124 @@ function viewLogin() {
       button.disabled = false;
     }
   });
+}
+
+// ---------- Startseite ----------
+
+const startHeading = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+const badgeDay = new Intl.DateTimeFormat('de-DE', { day: 'numeric' });
+const badgeMonth = new Intl.DateTimeFormat('de-DE', { month: 'short' });
+const shortDay = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+
+const daysFromToday = (isoDate) => Math.round((fromIsoDay(isoDate) - fromIsoDay(isoDay(new Date()))) / 86_400_000);
+
+/** „Heute“, „Morgen“, „Übermorgen“, sonst nur der Wochentag – das Datum steht jeweils daneben. */
+function dayName(isoDate) {
+  return ['Heute', 'Morgen', 'Übermorgen'][daysFromToday(isoDate)] ?? weekdayLong.format(fromIsoDay(isoDate));
+}
+
+/** Für enge Zeilen: „Morgen“ bzw. „Do., 5. Nov.“ */
+function shortDayLabel(isoDate) {
+  return daysFromToday(isoDate) <= 2 ? dayName(isoDate) : shortDay.format(fromIsoDay(isoDate));
+}
+
+function homeSectionHead(title, href, linkText) {
+  return `<div class="home-section-head"><h2>${title}</h2><a href="${href}">${linkText}</a></div>`;
+}
+
+/**
+ * Der nächste Abfuhrtag groß, die beiden folgenden klein darunter. Abfallarten, die jemand im
+ * Kalender ausgeblendet hat (z. B. weil der Haushalt keine Biotonne hat), fehlen auch hier.
+ */
+function homeWasteHtml(entries) {
+  const hidden = new Set(readStored(CALENDAR_HIDDEN_KEY, []));
+  const days = new Map();
+  for (const entry of entries) {
+    if (entry.type !== 'WASTE' || hidden.has(entry.category)) continue;
+    if (!days.has(entry.date)) days.set(entry.date, []);
+    days.get(entry.date).push(entry);
+  }
+  const [first, ...rest] = [...days].slice(0, 3);
+  const filterHint = [...hidden].some((category) => category !== 'EVENT')
+    ? '<p class="home-hint">Abfallarten, die du im Kalender ausgeblendet hast, erscheinen hier nicht.</p>'
+    : '';
+
+  if (!first) {
+    return `
+      <section class="home-panel home-waste">
+        ${homeSectionHead('Nächste Müllabfuhr', '#/kalender', 'Zum Kalender')}
+        <p class="muted">In den nächsten Wochen ist keine Abfuhr eingetragen.</p>
+        ${filterHint}
+      </section>`;
+  }
+
+  const [day, items] = first;
+  const inDays = daysFromToday(day);
+  return `
+    <section class="home-panel home-waste">
+      ${homeSectionHead('Nächste Müllabfuhr', '#/kalender', 'Zum Kalender')}
+      <p class="home-waste-day">${escapeHtml(dayName(day))}</p>
+      <p class="home-waste-date">${escapeHtml(dayMonth.format(fromIsoDay(day)))}${inDays > 2 ? `, in ${inDays} Tagen` : ''}</p>
+      <ul class="home-waste-kinds">
+        ${items.map((entry) => `<li>${categoryMark(entry.category)}${escapeHtml(entry.title)}</li>`).join('')}
+      </ul>
+      ${rest.length ? `
+        <ul class="home-waste-next">
+          ${rest.map(([nextDay, nextItems]) => `
+            <li><span>${escapeHtml(shortDayLabel(nextDay))}</span>
+              <span>${nextItems.map((entry) => `${categoryMark(entry.category)}${escapeHtml(entry.title)}`).join(' ')}</span></li>`).join('')}
+        </ul>` : ''}
+      ${filterHint}
+    </section>`;
+}
+
+function homeEventsHtml(entries) {
+  const events = entries.filter((entry) => entry.type === 'EVENT').slice(0, 3);
+  const list = events.length
+    ? `<ul class="home-events-list">${events.map((event) => {
+      const start = new Date(event.startsAt);
+      const href = event.newsId ? `#/news/${event.newsId}` : `#/kalender/termin/${event.id}`;
+      return `
+        <li><a href="${href}">
+          <span class="home-date"><span>${badgeDay.format(start)}</span>${escapeHtml(badgeMonth.format(start))}</span>
+          <span><strong>${escapeHtml(event.title)}</strong>
+            <span class="cal-sub">${escapeHtml(dayName(event.date))}, ${escapeHtml(eventWhenShort(event))}${event.location ? `, ${escapeHtml(event.location)}` : ''}</span></span>
+        </a></li>`;
+    }).join('')}</ul>`
+    : '<p class="muted">In den nächsten Wochen stehen keine Termine an.</p>';
+  return `
+    <section class="home-panel home-events">
+      ${homeSectionHead('Demnächst', '#/kalender/liste', 'Alle Termine')}
+      ${list}
+    </section>`;
+}
+
+function homeNewsHtml(items) {
+  const [lead, ...rest] = items.slice(0, 3);
+  return `
+    <section class="home-news">
+      ${homeSectionHead('Neuigkeiten', '#/news', 'Alle News')}
+      ${lead
+        ? `${newsLeadHtml(lead)}<ol class="news-list">${rest.map(newsItemHtml).join('')}</ol>`
+        : '<p class="muted">Hier erscheinen Neuigkeiten aus dem Haus.</p>'}
+    </section>`;
+}
+
+/** Was im Haus ansteht, auf einen Blick: Müll, Termine, Neuigkeiten. Ein Abruf je Quelle. */
+async function viewStart() {
+  const today = new Date();
+  const [entries, news] = await Promise.all([
+    api(`/api/calendar?from=${isoDay(today)}&to=${isoDay(addDays(today, 60))}`),
+    api('/api/news?page=0'),
+  ]);
+
+  render(`
+    ${pageHead('start', startHeading.format(today))}
+    <div class="home">
+      ${homeWasteHtml(entries)}
+      ${homeEventsHtml(entries)}
+      ${homeNewsHtml(news.items)}
+    </div>`, 'start');
 }
 
 // ---------- News ----------
@@ -1586,7 +1705,7 @@ function errorNotice(error, invalidText) {
 
 function viewRegister() {
   if (state.user) {
-    location.hash = '#/news';
+    location.hash = '#/start';
     return;
   }
 
@@ -1709,7 +1828,7 @@ function viewAccount() {
       form.reset();
       if (forced) {
         await loadUser();
-        location.hash = '#/news';
+        location.hash = '#/start';
       } else {
         result.innerHTML = '<p class="notice">Dein Passwort ist geändert.</p>';
       }
@@ -1736,7 +1855,7 @@ function viewAccount() {
     try {
       await api('/api/account/delete', { method: 'POST', body: { password: submitEvent.target.elements.deletePassword.value } });
       await loadUser();
-      location.hash = '#/news';
+      location.hash = '#/start';
     } catch (error) {
       document.getElementById('delete-result').innerHTML = errorNotice(error, 'Bitte gib dein Passwort ein.');
     }
@@ -1983,7 +2102,7 @@ function viewError(error, section) {
 // ---------- Router ----------
 
 async function route() {
-  const [section = 'news', first, second, third] = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+  const [section = 'start', first, second, third] = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   setActiveTab(section === 'login' ? null : section);
 
   // Mit einem Einmal-Passwort vom Admin geht es erst weiter, wenn ein eigenes gesetzt ist.
@@ -1993,7 +2112,8 @@ async function route() {
   }
 
   try {
-    if (section === 'login') viewLogin();
+    if (section === 'start') await viewStart();
+    else if (section === 'login') viewLogin();
     else if (section === 'registrieren') viewRegister();
     else if (section === 'konto') viewAccount();
     else if (section === 'verwaltung' && !first) await viewAdminMembers();
@@ -2021,7 +2141,7 @@ async function route() {
     else if (section === 'brett' && !first) await viewBoardList();
     else if (section === 'brett' && first === 'neu') await viewBoardEditor();
     else if (section === 'brett' && second === 'bearbeiten') await viewBoardEditor(first);
-    else location.hash = '#/news';
+    else location.hash = '#/start';
   } catch (error) {
     viewError(error, section);
   }

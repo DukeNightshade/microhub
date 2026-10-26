@@ -132,6 +132,7 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
 ## Frontend
 
 - Single-Page-App mit Hash-Router in `static/js/app.js`. Routen:
+  - `#/start` – Startseite und Standard beim Aufruf (Logo und erster Reiter führen hierher)
   - `#/login`
   - News: `#/news`, `#/news/neu`, `#/news/:id`, `#/news/:id/bearbeiten`
   - Kalender (Termine + Müll): `#/kalender` (öffnet immer das Monatsraster),
@@ -304,6 +305,13 @@ damit echte Nutzer starten können; PWA und Push danach.
    Gleiche Verarbeitung wie am Brett (`PhotoStorage`). Bilder werden in der Bildauswahl
    (`enablePhotoPicker` in `app.js`, auch vom Brett genutzt) erst beim Speichern hochgeladen.
    Beitrag löschen entfernt Zeilen per Kaskade und die Dateien nach dem Commit.
+9. **Startseite** (26.10.2026): eigener erster Reiter „Start“ (Tab-Leiste wieder 5 Reiter),
+   Überschrift ist das heutige Datum. Inhalte nach Wunsch des Entwicklers: **Nächste
+   Müllabfuhr** (groß „Morgen“/Wochentag, darunter Datum und die zwei folgenden Abfuhrtage;
+   im Kalender ausgeblendete Abfallarten fehlen auch hier), **Demnächst** (nächste 3 Termine),
+   **Neuigkeiten** (3 neueste, die erste als Aufmacher). Das Brett gehört bewusst **nicht**
+   dazu. Handy: Müll, Termine, News untereinander; ab 1000 px News links, Müll und Termine
+   rechts. Kein eigenes Backend – nutzt `/api/calendar` (60 Tage) und `/api/news`.
 
 ## Festlegungen Termine-Modul
 

@@ -185,6 +185,7 @@ a { color: inherit; }
 
 /* ---------- Bereichsnavigation (Handy: unten, Desktop: links) ---------- */
 
+.tabs [data-section="start"]    { --sec: var(--ink); }
 .tabs [data-section="news"]     { --sec: var(--c-news); }
 .tabs [data-section="kalender"] { --sec: var(--c-events); }
 .tabs [data-section="kontakte"] { --sec: var(--c-contacts); }
@@ -195,7 +196,7 @@ a { color: inherit; }
   inset: auto 0 0 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   background: var(--surface);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -360,6 +361,79 @@ main:focus, main:focus-visible { outline: none; }
 
 /* In der Bildauswahl: das erste Bild ist bei News das Titelbild */
 .cover-tag { font-size: .85rem; font-weight: 700; color: var(--c-news); }
+
+/* ---------- Startseite ----------
+   Handy: Müll, Termine, News untereinander – das Dringendste zuerst.
+   Desktop: News breit links, Müll und Termine als schmale Spalte rechts. */
+.home {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-areas: "waste" "events" "news";
+}
+.home-waste  { grid-area: waste; }
+.home-events { grid-area: events; }
+.home-news   { grid-area: news; }
+@media (min-width: 1000px) {
+  .home {
+    grid-template-columns: minmax(0, 1.65fr) minmax(17rem, 1fr);
+    grid-template-areas: "news waste" "news events";
+    grid-template-rows: auto 1fr;
+    align-items: start;
+  }
+}
+
+.home-section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .25rem 1rem; margin-bottom: .75rem; }
+.home-section-head h2 { margin: 0; font-size: 1.5rem; }
+.home-section-head a { color: var(--muted); font-size: .95rem; }
+
+.home-panel {
+  padding: 1.1rem 1.25rem 1.2rem;
+  border-radius: var(--radius);
+  border-left: 5px solid var(--sec, var(--ink));
+  background: var(--surface);
+}
+.home-waste  { --sec: var(--c-waste); }
+.home-events { --sec: var(--c-events); }
+
+/* Der nächste Abfuhrtag ist die wichtigste Zeile der Seite: groß, damit man ihn im Vorbeigehen liest */
+.home-waste-day { margin: 0; font: 700 2.3rem/1.05 var(--font-sign); }
+.home-waste-date { margin: .1rem 0 .6rem; color: var(--muted); }
+.home-waste-kinds { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; font-size: 1.2rem; font-weight: 700; }
+.home-waste-kinds li { display: flex; align-items: center; gap: .55rem; }
+.home-waste-kinds .waste-dot { width: 1.05rem; height: 1.05rem; }
+.home-waste-next {
+  list-style: none;
+  margin: .9rem 0 0;
+  padding: .7rem 0 0;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: .35rem;
+  color: var(--muted);
+  font-size: .95rem;
+}
+.home-waste-next li { display: grid; grid-template-columns: minmax(6.5rem, auto) 1fr; gap: .75rem; }
+.home-waste-next li > span:last-child { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .5rem; color: var(--ink); }
+.home-waste-next .waste-dot { width: .75rem; height: .75rem; }
+.home-hint { margin: .75rem 0 0; color: var(--muted); font-size: .88rem; }
+
+.home-events-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.home-events-list li + li { border-top: 1px solid var(--line); }
+.home-events-list a { display: flex; gap: .85rem; align-items: flex-start; padding: .6rem 0; text-decoration: none; }
+.home-events-list a:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+/* Kalenderblatt: Tag groß, Monat klein */
+.home-date {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  width: 3rem;
+  padding: .2rem 0 .25rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--c-events) 14%, var(--surface));
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.1;
+}
+.home-date span { font: 700 1.4rem/1.1 var(--font-sign); color: var(--ink); }
 
 /* Umschalter zwischen kommenden und vergangenen Einträgen */
 .list-switch { margin: -.5rem 0 1.25rem; }
