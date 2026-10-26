@@ -22,6 +22,11 @@ wichtigen Änderungen aktuell halten.
 Lokale Nachrichten-/Infoseite unter **microhub.dev** (Domain bei Name.com, ein Jahr gratis,
 noch keine DNS-Einträge gesetzt). Komplett kostenlos betrieben.
 
+**Wichtig:** Der Entwickler ist **Mieter**, nicht die Hausverwaltung. MicroHub ist ein privates
+Projekt aus eigener Initiative. Texte nie so formulieren, als käme etwas von der Hausverwaltung
+oder dem Vermieter – neutral „wer MicroHub betreut“ bzw. „Admin“. Die Druckzettel sagen
+ausdrücklich, dass MicroHub kein Angebot der Hausverwaltung ist.
+
 - **Gäste** (nicht eingeloggt): lesen News, Termine, Müllabfuhr.
 - **User** (eingeloggt): zusätzlich Kontakte, Schwarzes Brett (lesen + posten), Push-Abos.
 - **Admin**: pflegt News, Termine, Müllabfuhr, Kontakte.
@@ -328,6 +333,9 @@ damit echte Nutzer starten können; PWA und Push danach.
 - Produktion: `COOKIE_SECURE=true`, `SPRING_DATASOURCE_URL/USERNAME/PASSWORD`,
   `ADMIN_PASSWORD`, VAPID-Keys als Umgebungsvariablen (z. B. `.env` nur auf dem Server).
 - Docker-Image auf Basis eines Java-25-JRE-Images; Build/Deploy später per GitHub Actions.
+- Vor dem Livegang mit dem Entwickler klären: **Impressum und Datenschutzerklärung**. Die
+  öffentlichen Seiten (News, Termine, Müll) sind für jeden erreichbar, und es werden Daten von
+  Nachbarn verarbeitet – als Privatperson trotzdem Pflichten prüfen (keine Rechtsberatung).
 - Regelmäßiges DB-Backup (`pg_dump` per Cron) einplanen – **und den Upload-Ordner mitsichern**,
   sonst fehlen nach einer Wiederherstellung die Fotos.
 - Fotos: `UPLOAD_DIR` auf ein Docker-Volume zeigen lassen (z. B. `/data/uploads`), damit sie

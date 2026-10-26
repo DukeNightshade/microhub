@@ -100,7 +100,7 @@ function viewLogin() {
       <div><button class="btn" type="submit">Anmelden</button></div>
     </form>
     <p class="form-aside">Neu hier? <a href="#/registrieren">Mit Freischaltcode registrieren</a></p>
-    <p class="form-aside muted">Passwort vergessen? Die Hausverwaltung kann es für dich zurücksetzen.</p>`, 'news');
+    <p class="form-aside muted">Passwort vergessen? Wer MicroHub betreut, kann es für dich zurücksetzen.</p>`, 'news');
 
   const form = document.getElementById('login-form');
   form.addEventListener('submit', async (event) => {
@@ -115,7 +115,7 @@ function viewLogin() {
     } catch (error) {
       // Die API unterscheidet bewusst nicht zwischen falschem Passwort und gesperrtem Konto.
       document.getElementById('login-error').innerHTML = error.status === 401
-        ? '<p class="notice error">Benutzername oder Passwort stimmt nicht. Falls dein Konto gesperrt wurde, wende dich an die Hausverwaltung.</p>'
+        ? '<p class="notice error">Benutzername oder Passwort stimmt nicht. Falls dein Konto gesperrt wurde, wende dich an die Person, die MicroHub betreut.</p>'
         : '<p class="notice error">Anmelden hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
       button.disabled = false;
     }
@@ -1271,7 +1271,7 @@ function viewRegister() {
 
   render(`
     ${pageHead('registrieren', 'Registrieren')}
-    <p class="muted form-intro">Den Freischaltcode hast du von der Hausverwaltung bekommen, meist auf einem Zettel im Briefkasten.</p>
+    <p class="muted form-intro">Den Freischaltcode hast du auf einem Zettel im Briefkasten bekommen.</p>
     <div id="register-error"></div>
     <form class="form" id="register-form">
       <div class="field">
@@ -1336,7 +1336,7 @@ function viewAccount() {
       <h2>Passwort ändern</h2>
       <div id="password-result"></div>
       <form class="form" id="password-form">
-        ${passwordField('currentPassword', forced ? 'Einmal-Passwort von der Hausverwaltung' : 'Bisheriges Passwort', '', 'current-password')}
+        ${passwordField('currentPassword', forced ? 'Einmal-Passwort, das du bekommen hast' : 'Bisheriges Passwort', '', 'current-password')}
         ${passwordField('newPassword', 'Neues Passwort', `Mindestens ${PASSWORD_MIN} Zeichen.`)}
         <div><button class="btn" type="submit">Passwort ändern</button></div>
       </form>
@@ -1345,7 +1345,7 @@ function viewAccount() {
   if (forced) {
     render(`
       ${pageHead('konto', 'Eigenes Passwort setzen')}
-      <p class="notice">Die Hausverwaltung hat dein Passwort zurückgesetzt. Bitte wähle jetzt ein eigenes – danach geht es ganz normal weiter.</p>
+      <p class="notice">Dein Passwort wurde zurückgesetzt. Bitte wähle jetzt ein eigenes – danach geht es ganz normal weiter.</p>
       ${passwordForm}`, 'konto');
   } else {
     render(`
@@ -1606,7 +1606,8 @@ async function viewCodeSlips(idList = '') {
         <li>Tippe auf „Anmelden“ und dann auf „Mit Freischaltcode registrieren“.</li>
         <li>Gib diesen Code ein: <code class="slip-code">${escapeHtml(code.code)}</code></li>
       </ol>
-      <p class="slip-note">Der Code gilt für zwei Personen eures Haushalts. Bitte nicht weitergeben.</p>
+      <p class="slip-note">Der Code gilt für zwei Personen eures Haushalts. Bitte nicht weitergeben.
+         MicroHub ist ein privates Projekt aus der Nachbarschaft – kein Angebot der Hausverwaltung.</p>
     </article>`).join('');
 
   render(`
