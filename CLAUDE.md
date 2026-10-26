@@ -54,12 +54,13 @@ src/main/java/dev/microhub/
 ├── waste/       WasteCollection, WasteType, WasteRepository, WasteService,
 │                WasteController, WasteImportService, IcsParser, IcsEvent,
 │                WasteRequest, WasteItem, WastePage, WasteTypeOption, WasteImportResult
-├── contacts/    (geplant)
+├── contacts/    Contact, ContactRepository, ContactService, ContactController,
+│                ContactRequest, ContactItem
 ├── board/       (geplant) Schwarzes Brett
 └── push/        (geplant) Web Push, Abos, Scheduler
 src/main/resources/
 ├── application.yaml
-├── db/migration/V1__init.sql
+├── db/migration/V1__init.sql, V2__contact_public.sql
 └── static/      index.html, css/app.css, js/api.js, js/app.js
 ```
 
@@ -73,7 +74,8 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   `waste_collection` (mit `reminder_sent`), `contact`, `board_post` (mit `expires_at`),
   `push_subscription` (mit `notify_news/events/waste/board`).
 - **Ausgeführte Migrationen nie ändern.** Änderungen nur als neue Datei `V2__…sql` usw.
-  Bisher ist nur `V1` ausgeführt, die Nummern danach sind also noch frei.
+  Ausgeführt sind `V1` und `V2__contact_public.sql` (Spalte `contact.public`);
+  die nächste Migration heißt `V3__…`.
 - `open-in-view: false` → Lazy-Relationen nur innerhalb von `@Transactional` auflösen
   (oder `@EntityGraph` nutzen, siehe `NewsRepository`).
 - Text-Spalten (`TEXT`) in Entities mit `@Column(columnDefinition = "text")` mappen.
@@ -87,8 +89,8 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
 - Nicht eingeloggt auf geschützter API → 401 (`HttpStatusEntryPoint`).
 - CSRF aktiv: Cookie `XSRF-TOKEN` (nicht HttpOnly), Frontend sendet Header `X-XSRF-TOKEN`
   (`static/js/api.js`). Nach Login/Logout `/api/auth/me` erneut aufrufen (Token rotiert).
-- Regeln: GET `/api/news|events|waste/**` öffentlich; GET `/api/contacts/**`,
-  `/api/board/**`, `/api/push/**` nur eingeloggt; Schreibzugriffe auf
+- Regeln: GET `/api/news|events|waste|contacts/**` öffentlich (bei Kontakten filtert der
+  `ContactService`: Gäste nur `public = true`); `/api/board/**`, `/api/push/**` nur eingeloggt; Schreibzugriffe auf
   news/events/waste/contacts nur `ROLE_ADMIN`.
 - Passwort-Hashing: `DelegatingPasswordEncoder` (bcrypt).
 - Erster Admin wird beim Start von `AdminInitializer` aus `ADMIN_USERNAME`
@@ -103,7 +105,8 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
     `#/termine/:id/bearbeiten`
   - Müll: `#/muell`, `#/muell/vergangen`, `#/muell/neu`, `#/muell/import`,
     `#/muell/:id/bearbeiten` (keine Detailseite – die Zeile führt Admins direkt ins Formular)
-  - noch Platzhalter: `#/kontakte`, `#/brett`
+  - Kontakte: `#/kontakte`, `#/kontakte/neu`, `#/kontakte/:id/bearbeiten` (keine Detailseite)
+  - noch Platzhalter: `#/brett`
 - `static/js/api.js` kennt vier Arten von Anfragen: GET, `body` (JSON), `form`
   (form-urlencoded, für den Login) und `upload` (FormData, für den ICS-Import).
 - Alle Daten aus der API **immer escapen** (`escapeHtml`). Kein HTML aus der Datenbank
@@ -133,7 +136,7 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
       – committet in `92c48e5`, `mvnw compile` läuft fehlerfrei
 - [x] Termine-Modul (API) + Frontend (Liste, kommend/vergangen, Detail, Formular)
 - [x] Müllabfuhr (API, ICS-Import, Frontend) – Erinnerung per Push kommt später
-- [ ] Kontakte
+- [x] Kontakte (API + Frontend, öffentlich/intern getrennt)
 - [ ] Schwarzes Brett
 - [ ] Benutzerverwaltung / Registrierung über Freischaltcodes
 - [ ] PWA (manifest.json, Service Worker, Icons, Offline-Fallback)
@@ -141,49 +144,23 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
 - [ ] Tests + GitHub Actions CI
 - [ ] Deployment auf Oracle Cloud + DNS + HTTPS
 
-## Handover – Stand 19.10.2026
+## Handover – Stand 26.10.2026
 
-**Zuletzt gemacht:** News, Termine und Müllabfuhr sind fertig (API + Frontend).
-`.\mvnw compile` läuft fehlerfrei. Letzte Commits:
-
-| Commit | Inhalt |
-|---|---|
-| `f1b8cef` | Müllabfuhr in dieser Übergabe dokumentiert |
-| `1205b7c` | Müllabfuhr-Modul mit ICS-Import |
-| `72fe6f2` | Bezeichner im Termine-Modul auf Englisch vereinheitlicht |
-| `d50114e` | Termine-Modul im Stand vermerkt |
-| `af321da` | Termine im Frontend |
-| `6b38798` | Termine-API |
-| `deb15c9` | Diese Datei aufgenommen, Entscheidungen festgehalten |
-
-**Wichtig:** Diese 7 Commits liegen nur lokal – `origin/master` steht noch auf `92c48e5`.
-Vor dem Weiterarbeiten `git push` überlegen.
+**Zuletzt gemacht:** Kontakte-Modul fertig (Migration V2, API, Frontend), mit Gast und Admin
+im Browser getestet. Commits `2cb4c52` (API) und `984bffd` (Frontend) plus diese Doku liegen
+nur lokal – `origin/master` steht auf `e53769f`.
 
 **Zustand der lokalen Umgebung:**
 - Datenbank enthält die **185 echten Abfuhrtermine** aus den ICS-Dateien des Landkreises
-  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen.
-- Genau **ein Benutzer**: `admin` (ROLE_ADMIN).
-- News und Termine sind leer.
+  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen. Flyway steht auf `V2`.
+- Genau **ein Benutzer**: `admin` (ROLE_ADMIN). News, Termine und Kontakte sind leer.
 - Der Container `microhub-postgres-1` läuft oder lässt sich mit dem App-Start neu hochziehen.
 
-**Nächster Schritt: Kontakte-Modul.** Die Entscheidung dazu steht schon (siehe „Getroffene
-Entscheidungen“, Punkt 2). Konkret:
+**Nächster Schritt: Schwarzes Brett** (Tabelle `board_post` mit `expires_at` steht schon in V1).
+Vorher mit dem Entwickler klären: Wer darf löschen (Autor und Admin?), wie lange bleibt ein
+Beitrag stehen (Standard für `expires_at`), braucht es Arten wie „Biete/Suche“?
 
-1. Migration `V2__contact_public.sql` anlegen (die Nummerierung ist frei, `V1` ist die einzige
-   bisher ausgeführte Migration): `ALTER TABLE contact ADD COLUMN public BOOLEAN NOT NULL
-   DEFAULT FALSE;`
-2. Paket `dev.microhub.contacts` nach dem Muster von `waste/`: Entity, Repository, Service,
-   Controller, Records. Sortierung nach `sort_order`, dann `name`.
-3. `SecurityConfig`: GET `/api/contacts/**` von `authenticated()` auf `permitAll()` ändern.
-   Die Trennung macht dann der Service: Gäste bekommen nur Einträge mit `public = true`,
-   Eingeloggte alle. Prüfen über `Authentication` im Controller oder
-   `SecurityContextHolder` im Service.
-4. Frontend: `#/kontakte` (Liste nach Kategorie gruppiert, Telefonnummern als `tel:`-Links),
-   dazu `#/kontakte/neu` und `#/kontakte/:id/bearbeiten` für Admins. `SECTIONS.kontakte` in
-   `app.js` hat aktuell noch `loginRequired: true` – das muss weg, sonst sehen Gäste die
-   Seite nicht.
-
-Danach: Schwarzes Brett, dann Benutzerverwaltung mit Freischaltcodes.
+Danach: Benutzerverwaltung mit Freischaltcodes.
 
 ## Getroffene Entscheidungen
 
@@ -239,7 +216,27 @@ Danach: Schwarzes Brett, dann Benutzerverwaltung mit Freischaltcodes.
 - Mit den echten Dateien geprüft: 2026 → 106 Einträge, 94 angelegt, 12 übersprungen,
   `Tannenbaum` unter „Sonstiges“. 2027 → 103 Einträge, 91 angelegt, 12 übersprungen.
 
+## Festlegungen Kontakte-Modul
+
+- Keine Seitenaufteilung: ein Telefonbuch hat nur wenige Dutzend Einträge.
+- Sortierung `sort_order`, dann `name`. Das Frontend gruppiert nach `category` in der
+  Reihenfolge der ersten Zeile jeder Gruppe – `sort_order` steuert also auch die Gruppen.
+  Kontakte ohne Kategorie stehen unter „Weitere Kontakte“.
+- Das Java-Feld heißt `publicContact`, weil `public` ein Java-Schlüsselwort ist; die Spalte
+  heißt `public`.
+- Interne Kontakte liefern Gästen auch bei `GET /api/contacts/{id}` eine 404 (nicht 403),
+  damit niemand erfährt, dass es den Eintrag gibt.
+- Eingeloggt-Prüfung im Controller: Gäste haben ein `AnonymousAuthenticationToken`, das
+  `isAuthenticated()` ebenfalls mit `true` beantwortet – der Typ muss mitgeprüft werden.
+- Webseiten nur mit `http(s)://` (Validierung im Record und zusätzlich im Frontend), sonst
+  wären `javascript:`-Links möglich.
+
 ## Bekannte Stolperstellen
+
+- Jackson 3 lehnt JSON ab, in dem ein primitives Feld (`int`, `boolean`) eines Records fehlt
+  (400 „Failed to read request“). Das Frontend schickt deshalb immer alle Felder.
+- Im Formular-JS Felder über `form.elements.<name>` lesen: `form.name` ist der Name des
+  Formulars selbst, nicht das Eingabefeld `name`.
 
 - `src/test/.../MicrohubApplicationTests` (contextLoads) braucht eine Datenbank. Docker
   Compose wird in Tests standardmäßig übersprungen → Test schlägt ohne DB fehl.
