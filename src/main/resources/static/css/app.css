@@ -687,3 +687,73 @@ fieldset.field legend { padding: 0; margin-bottom: .35rem; font-weight: 600; }
   .wt-SPERRMUELL  { background: #C3C8CC; }
   .wt-SONSTIGES   { background: #C3C8CC; }
 }
+
+/* ---------- Konto, Registrierung, Verwaltung ---------- */
+
+/* Langer Anzeigename darf die Kopfzeile auf dem Handy nicht sprengen */
+.account a.who { max-width: 10rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.form-intro { max-width: 60ch; margin-top: -.75rem; }
+.form-aside { margin: 1.25rem 0 0; }
+.form-aside + .form-aside { margin-top: .4rem; }
+.show-password { display: inline-flex; align-items: center; gap: .45rem; font-weight: 400 !important; font-size: .95rem; color: var(--muted); }
+
+.account-section { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.account-section:first-of-type { margin-top: 1rem; }
+.account-section h2 { margin: 0 0 .75rem; font-size: 1.2rem; }
+.danger-zone h2 { color: var(--danger); }
+textarea.short-text { min-height: 7rem; }
+
+.subnav { display: flex; gap: 1.25rem; margin: -.75rem 0 1.5rem; border-bottom: 1px solid var(--line); }
+.subnav a { padding: .4rem 0 .6rem; color: var(--muted); text-decoration: none; }
+.subnav a[aria-current="page"] { color: var(--ink); font-weight: 700; box-shadow: inset 0 -3px 0 var(--ink); }
+
+.member-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.member { display: grid; gap: .3rem; padding: 1rem 0; border-bottom: 1px solid var(--line); }
+.member p { margin: 0; }
+.member-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; }
+.member-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .25rem; }
+
+.code-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: .9rem;
+  padding: .9rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.code-row p { margin: .15rem 0 0; }
+.code-pick input { width: 1.2rem; height: 1.2rem; }
+
+.tag-warn { border-color: var(--danger); color: var(--danger); }
+.tag-ok { border-color: var(--c-events); color: var(--c-events); }
+
+/* Codes und Einmal-Passwörter: Festbreitenschrift, damit niemand 0/O verwechselt */
+code.secret, .slip-code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  letter-spacing: .06em;
+}
+code.secret { padding: .05rem .35rem; border-radius: 4px; background: var(--paper); }
+
+/* Zettel für den Briefkasten */
+.slips { display: grid; gap: 0; max-width: 40rem; }
+.slip {
+  padding: 1.5rem 1.25rem;
+  border-bottom: 2px dashed var(--line);
+  background: var(--surface);
+}
+.slip:first-child { border-top: 2px dashed var(--line); }
+.slip p, .slip ol { margin: 0 0 .6rem; }
+.slip-brand { font-weight: 800; font-size: 1.15rem; }
+.slip-for { font-size: 1.05rem; }
+.slip-code { display: inline-block; padding: .1rem .5rem; border: 1px solid currentColor; border-radius: 4px; font-size: 1.25rem; font-weight: 700; }
+.slip-note { font-size: .9rem; color: var(--muted); }
+
+@media print {
+  .topbar, .tabs, .skip-link, .no-print { display: none !important; }
+  body { display: block; background: #fff; color: #000; }
+  main { max-width: none; margin: 0; padding: 0; }
+  .slips { max-width: none; }
+  .slip { background: #fff; color: #000; border-color: #999; break-inside: avoid; }
+  .slip-note { color: #333; }
+}

@@ -44,9 +44,13 @@ src/main/java/dev/microhub/
 ├── MicrohubApplication.java
 ├── common/      NotFoundException (→ 404), ConflictException (→ 409),
 │                BadRequestException (→ 400), ForbiddenException (→ 403)
-├── config/      SecurityConfig
+├── config/      SecurityConfig, WebConfig (registriert den MustChangePasswordInterceptor)
 ├── user/        AppUser, Role, AppUserRepository, AppUserDetailsService,
-│                AdminInitializer, AuthController
+│                AdminInitializer, AuthController (me, register),
+│                InviteCode, InviteCodeRepository, Secrets, PasswordRules,
+│                AccountService/-Controller/-Requests („Mein Konto“),
+│                AdminService/-Controller/-Dtos (Codes, Mitglieder),
+│                SessionTerminator, MustChangePasswordInterceptor, AccountDeletedEvent
 ├── news/        News, NewsRepository, NewsService, NewsController,
 │                NewsRequest, NewsResponse, NewsListItem, NewsPage
 ├── events/      CalendarEvent, EventRepository, EventService, EventController,
@@ -62,7 +66,7 @@ src/main/java/dev/microhub/
 └── push/        (geplant) Web Push, Abos, Scheduler
 src/main/resources/
 ├── application.yaml
-├── db/migration/V1__init.sql … V5__board_photo.sql
+├── db/migration/V1__init.sql … V6__invite_code.sql
 └── static/      index.html, css/app.css, js/api.js, js/app.js
 ```
 
@@ -76,9 +80,10 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   `waste_collection` (mit `reminder_sent`), `contact`, `board_post` (mit `expires_at`),
   `push_subscription` (mit `notify_news/events/waste/board`).
 - **Ausgeführte Migrationen nie ändern.** Änderungen nur als neue Datei `V2__…sql` usw.
-  Ausgeführt sind `V1` bis `V5` (`V2` `contact.public`, `V3` `board_post.kind`,
-  `V4` `board_post.contact`, `V5` `board_post.revived` + Tabelle `board_photo`);
-  die nächste Migration heißt `V6__…`.
+  Ausgeführt sind `V1` bis `V6` (`V2` `contact.public`, `V3` `board_post.kind`,
+  `V4` `board_post.contact`, `V5` `board_post.revived` + Tabelle `board_photo`,
+  `V6` Tabelle `invite_code` + `app_user.invite_code_id`/`must_change_password`);
+  die nächste Migration heißt `V7__…`.
 - `open-in-view: false` → Lazy-Relationen nur innerhalb von `@Transactional` auflösen
   (oder `@EntityGraph` nutzen, siehe `NewsRepository`).
 - Text-Spalten (`TEXT`) in Entities mit `@Column(columnDefinition = "text")` mappen.
@@ -96,7 +101,18 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
   `ContactService`: Gäste nur `public = true`); `/api/board/**`, `/api/push/**` nur eingeloggt; Schreibzugriffe auf
   news/events/waste/contacts nur `ROLE_ADMIN`. Beim Brett prüft der `BoardService` je Aushang
   „Autor oder Admin“ (`BoardPost.canBeEditedBy`), sonst 403 (`ForbiddenException`).
-- Passwort-Hashing: `DelegatingPasswordEncoder` (bcrypt).
+  `/api/account/**` nur eingeloggt, `/api/admin/**` nur `ROLE_ADMIN`,
+  `POST /api/auth/register` öffentlich.
+- Login-Fehler antworten immer 401 – bewusst ohne Unterschied zwischen falschem Passwort und
+  gesperrtem Konto (sonst ließe sich ohne Passwort prüfen, welche Benutzernamen es gibt).
+- `SessionRegistry` (+ `HttpSessionEventPublisher`) kennt alle Sitzungen. `SessionTerminator`
+  meldet ein Mitglied bei Sperre, Rollenwechsel und Passwort-Reset überall ab, weil Rolle und
+  Sperre sonst erst beim nächsten Anmelden greifen würden.
+- Einmal-Passwort: Der Login-Success-Handler setzt bei `must_change_password` ein
+  Sitzungsmerkmal; `MustChangePasswordInterceptor` sperrt dann alle `/api/**` außer
+  `/api/auth/**` und `PUT /api/account/password` (403).
+- Passwort-Hashing: `DelegatingPasswordEncoder` (bcrypt). Passwörter 10–64 Zeichen und höchstens
+  72 Byte (bcrypt-Grenze, `PasswordRules`).
 - Erster Admin wird beim Start von `AdminInitializer` aus `ADMIN_USERNAME`
   (Standard `admin`) und `ADMIN_PASSWORD` angelegt, falls noch kein Admin existiert.
 
@@ -111,6 +127,9 @@ Neue Module folgen dem Muster von `news/`: Entity → Repository → Service
     `#/muell/:id/bearbeiten` (keine Detailseite – die Zeile führt Admins direkt ins Formular)
   - Kontakte: `#/kontakte`, `#/kontakte/neu`, `#/kontakte/:id/bearbeiten` (keine Detailseite)
   - Brett: `#/brett`, `#/brett/neu`, `#/brett/:id/bearbeiten` (nur eingeloggt, keine Detailseite)
+  - Konto: `#/registrieren`, `#/konto` (bei Einmal-Passwort leitet der Router jede Route hierher)
+  - Verwaltung (Admins, Link in der Kopfzeile): `#/verwaltung` (Mitglieder),
+    `#/verwaltung/codes`, `#/verwaltung/drucken/:id,:id,…` (Zettel, `@media print`)
 - `static/js/api.js` kennt vier Arten von Anfragen: GET, `body` (JSON), `form`
   (form-urlencoded, für den Login) und `upload` (FormData, für den ICS-Import).
 - Alle Daten aus der API **immer escapen** (`escapeHtml`). Kein HTML aus der Datenbank
@@ -143,7 +162,8 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
 - [x] Kontakte (API + Frontend, öffentlich/intern getrennt)
 - [x] Schwarzes Brett (API + Frontend, Zettel-Karten mit Filter, bis zu 3 Fotos,
       einmal Neu-Aufhängen nach Ablauf, nächtlicher Aufräum-Job)
-- [ ] Benutzerverwaltung / Registrierung über Freischaltcodes
+- [x] Benutzerverwaltung: Registrierung mit Freischaltcode, Mein Konto, Verwaltung von Codes
+      (mit Druckzetteln) und Mitgliedern
 - [ ] PWA (manifest.json, Service Worker, Icons, Offline-Fallback)
 - [ ] Web Push (VAPID)
 - [ ] Tests + GitHub Actions CI
@@ -151,31 +171,41 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
 
 ## Handover – Stand 26.10.2026
 
-**Zuletzt gemacht:** Kontakte-Modul und Schwarzes Brett fertig (API + Frontend), danach
-Fotos am Brett und die Ablauf-/Aufräumregeln. Alles mit Gast, Benutzern und Admin im Browser
-getestet.
+**Zuletzt gemacht:** Kontakte, Schwarzes Brett (mit Fotos und Ablaufregeln) und die
+Benutzerverwaltung mit Freischaltcodes. Alles mit Gast, Mitgliedern und Admin im Browser
+getestet. Damit sind alle fünf Bereiche fertig.
 
 **Zustand der lokalen Umgebung:**
 - Datenbank enthält die **185 echten Abfuhrtermine** aus den ICS-Dateien des Landkreises
-  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen. Flyway steht auf `V5`.
-- Genau **ein Benutzer**: `admin` (ROLE_ADMIN). News, Termine, Kontakte und Brett sind leer.
+  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen. Flyway steht auf `V6`.
+- Genau **ein Benutzer**: `admin` (ROLE_ADMIN), keine Freischaltcodes.
+  News, Termine, Kontakte und Brett sind leer.
 - Fotos landen lokal in `data/uploads/` im Projektordner (per `.gitignore` ausgeschlossen).
 - Der Container `microhub-postgres-1` läuft oder lässt sich mit dem App-Start neu hochziehen.
 
-**Nächster Schritt: Benutzerverwaltung mit Freischaltcodes** (Entscheidung 1). Erst dadurch
-kann es normale Mitglieder geben – bisher existiert nur der Admin, das Brett ist also für
-echte Nutzer noch nicht erreichbar. Vorher mit dem Entwickler klären: Gestaltung der
-Registrierungsseite, welche Angaben bei der Registrierung (Anzeigename, E-Mail?), wie der
-Admin Codes verteilt (Liste zum Ausdrucken?), Passwort vergessen.
+**Nächster Schritt: mit dem Entwickler festlegen.** Offen sind PWA, Web Push, Tests + CI und
+das Deployment. Vorgeschlagen (26.10.2026): erst Tests (Testcontainers) + CI, dann Deployment,
+damit echte Nutzer starten können; PWA und Push danach.
 
 ## Getroffene Entscheidungen
 
 1. **Registrierung über Freischaltcodes** (18.10.2026): Es gibt eine Selbstregistrierung,
    aber nur mit gültigem Code. Ein Code ist **maximal 2× einlösbar** – zwei Personen pro
-   Wohnung. Der Admin erzeugt und verteilt die Codes.
-   → Braucht später eine Migration `V…__invite_code.sql` (Tabelle `invite_code` mit
-   `code`, `label` für die Wohnung, `max_uses` Standard 2, `used_count`, `expires_at`,
-   `created_at`), eine Registrierungsseite und eine Admin-Ansicht für die Codes.
+   Wohnung. Der Admin erzeugt und verteilt die Codes. **Umgesetzt (26.10.2026)** mit diesen
+   Festlegungen des Entwicklers:
+   - Registrierung fragt nur **Anzeigename, Benutzername, Passwort** ab – keine E-Mail
+     (Datensparsamkeit). Danach wird automatisch angemeldet.
+   - Codes **laufen nicht ab** (daher kein `expires_at`), der Admin kann sie sperren. Format
+     `XXXX-XXXX-XXXX` ohne verwechselbare Zeichen; Eingabe in beliebiger Schreibweise.
+   - Verteilung über **Zettel zum Ausdrucken** (einer pro Wohnung, mit Anleitung).
+   - **Passwort vergessen:** Der Admin erzeugt ein Einmal-Passwort, das beim nächsten Anmelden
+     sofort ersetzt werden muss. Kein Mailversand.
+   - **Admin:** Mitgliederliste (mit Wohnung aus dem Code), Passwort zurücksetzen,
+     sperren/entsperren, Admin-Rechte vergeben/entziehen. Sich selbst sperren/herabstufen geht
+     nicht, und es bleibt immer mindestens ein aktiver Admin.
+   - **Mein Konto:** Passwort und Anzeigenamen ändern, Konto löschen (mit Passwort; löscht auch
+     Aushänge und Fotos). Ein gelöschtes Konto gibt seinen Platz im Code nicht wieder frei.
+   - Passwortregel: **mindestens 10 Zeichen**, keine Komplexitätsregeln.
 2. **Kontakte nach Kategorie trennen** (18.10.2026): Öffentliche Kontakte (z. B.
    Notfallnummern) sind auch für Gäste sichtbar, alle übrigen nur für Eingeloggte.
    → Braucht später die Spalte `public BOOLEAN NOT NULL DEFAULT FALSE` in `contact`

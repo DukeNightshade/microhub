@@ -6,6 +6,10 @@ const SECTIONS = {
   muell:    { title: 'Müllabfuhr',      color: '--c-waste' },
   kontakte: { title: 'Kontakte',        color: '--c-contacts' },
   brett:    { title: 'Schwarzes Brett', color: '--c-board' },
+  // ohne eigenen Tab, erreichbar über die Kopfzeile
+  konto:        { title: 'Mein Konto',    color: '--ink' },
+  verwaltung:   { title: 'Verwaltung',    color: '--ink' },
+  registrieren: { title: 'Registrieren',  color: '--ink' },
 };
 
 const state = { user: null, returnTo: null };
@@ -65,7 +69,8 @@ async function loadUser() {
 function renderAccount() {
   if (state.user) {
     account.innerHTML = `
-      <span class="who">${escapeHtml(state.user.username)}</span>
+      ${isAdmin() ? '<a class="who" href="#/verwaltung">Verwaltung</a>' : ''}
+      <a class="who" href="#/konto" title="Mein Konto">${escapeHtml(state.user.displayName)}</a>
       <button class="link-button" type="button" id="logout">Abmelden</button>`;
     document.getElementById('logout').addEventListener('click', logout);
   } else {
@@ -93,7 +98,9 @@ function viewLogin() {
         <input id="password" name="password" type="password" autocomplete="current-password" required>
       </div>
       <div><button class="btn" type="submit">Anmelden</button></div>
-    </form>`, 'news');
+    </form>
+    <p class="form-aside">Neu hier? <a href="#/registrieren">Mit Freischaltcode registrieren</a></p>
+    <p class="form-aside muted">Passwort vergessen? Die Hausverwaltung kann es für dich zurücksetzen.</p>`, 'news');
 
   const form = document.getElementById('login-form');
   form.addEventListener('submit', async (event) => {
@@ -103,11 +110,12 @@ function viewLogin() {
     try {
       await api('/api/auth/login', { method: 'POST', form: Object.fromEntries(new FormData(form)) });
       await loadUser(); // holt nach dem Login ein neues CSRF-Token
-      location.hash = state.returnTo || '#/news';
+      location.hash = state.user?.mustChangePassword ? '#/konto' : state.returnTo || '#/news';
       state.returnTo = null;
     } catch (error) {
+      // Die API unterscheidet bewusst nicht zwischen falschem Passwort und gesperrtem Konto.
       document.getElementById('login-error').innerHTML = error.status === 401
-        ? '<p class="notice error">Benutzername oder Passwort stimmt nicht.</p>'
+        ? '<p class="notice error">Benutzername oder Passwort stimmt nicht. Falls dein Konto gesperrt wurde, wende dich an die Hausverwaltung.</p>'
         : '<p class="notice error">Anmelden hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
       button.disabled = false;
     }
@@ -1224,6 +1232,396 @@ async function viewBoardEditor(id) {
   });
 }
 
+// ---------- Registrierung und Mein Konto ----------
+
+const PASSWORD_MIN = 10;
+
+/** Ein Passwortfeld mit „Passwort anzeigen“ – auf dem Handy hilfreicher als ein zweites Feld zum Wiederholen. */
+function passwordField(id, label, hint = '', autocomplete = 'new-password') {
+  return `
+    <div class="field">
+      <label for="${id}">${label}</label>
+      ${hint ? `<span class="hint">${hint}</span>` : ''}
+      <input id="${id}" name="${id}" type="password" autocomplete="${autocomplete}" required
+             ${autocomplete === 'new-password' ? `minlength="${PASSWORD_MIN}" maxlength="64"` : ''}>
+      <label class="show-password"><input type="checkbox" data-toggle="${id}"> Passwort anzeigen</label>
+    </div>`;
+}
+
+function enablePasswordToggles(root) {
+  root.querySelectorAll('[data-toggle]').forEach((box) => {
+    box.addEventListener('change', () => {
+      document.getElementById(box.dataset.toggle).type = box.checked ? 'text' : 'password';
+    });
+  });
+}
+
+/** Fehlermeldung aus der API (409 bringt einen verständlichen Text mit), sonst ein allgemeiner Hinweis. */
+function errorNotice(error, invalidText) {
+  if (error.status === 409 || error.status === 403) return `<p class="notice error">${escapeHtml(error.message)}</p>`;
+  if (error.status === 400) return `<p class="notice error">${invalidText}</p>`;
+  return '<p class="notice error">Das hat nicht geklappt. Prüfe deine Verbindung und versuche es noch einmal.</p>';
+}
+
+function viewRegister() {
+  if (state.user) {
+    location.hash = '#/news';
+    return;
+  }
+
+  render(`
+    ${pageHead('registrieren', 'Registrieren')}
+    <p class="muted form-intro">Den Freischaltcode hast du von der Hausverwaltung bekommen, meist auf einem Zettel im Briefkasten.</p>
+    <div id="register-error"></div>
+    <form class="form" id="register-form">
+      <div class="field">
+        <label for="code">Freischaltcode</label>
+        <input id="code" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false"
+               placeholder="XXXX-XXXX-XXXX" required>
+      </div>
+      <div class="field">
+        <label for="displayName">Dein Name</label>
+        <span class="hint">So sehen dich die anderen am Schwarzen Brett, zum Beispiel „Familie Müller“ oder „Anna, Whg. 3“.</span>
+        <input id="displayName" name="displayName" autocomplete="name" minlength="2" maxlength="100" required>
+      </div>
+      <div class="field">
+        <label for="username">Benutzername</label>
+        <span class="hint">Damit meldest du dich an. 3 bis 30 Zeichen: Buchstaben, Ziffern, Punkt, Binde- oder Unterstrich.</span>
+        <input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false"
+               pattern="[A-Za-z0-9._\\-]{3,30}" required>
+      </div>
+      ${passwordField('password', 'Passwort', `Mindestens ${PASSWORD_MIN} Zeichen. Ein langer Satz ist sicherer als ein kurzes Wort mit Sonderzeichen.`)}
+      <div><button class="btn" type="submit">Konto anlegen</button></div>
+    </form>
+    <p class="form-aside">Schon registriert? <a href="#/login">Anmelden</a></p>`, 'registrieren');
+
+  const form = document.getElementById('register-form');
+  enablePasswordToggles(form);
+
+  form.addEventListener('submit', async (submitEvent) => {
+    submitEvent.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    const fields = form.elements;
+    const body = {
+      code: fields.code.value,
+      displayName: fields.displayName.value,
+      username: fields.username.value,
+      password: fields.password.value,
+    };
+
+    try {
+      await api('/api/auth/register', { method: 'POST', body });
+      // Gleich anmelden, damit niemand seine frisch gewählten Daten zweimal tippen muss.
+      await api('/api/auth/login', { method: 'POST', form: { username: body.username, password: body.password } });
+      await loadUser();
+      location.hash = '#/brett';
+    } catch (error) {
+      document.getElementById('register-error').innerHTML = errorNotice(error,
+        'Bitte prüfe deine Angaben: Name mindestens 2 Zeichen, Benutzername 3 bis 30 erlaubte Zeichen, Passwort mindestens 10 Zeichen.');
+      button.disabled = false;
+    }
+  });
+}
+
+function viewAccount() {
+  if (!state.user) {
+    loginPrompt('konto');
+    return;
+  }
+
+  const forced = state.user.mustChangePassword;
+  const passwordForm = `
+    <section class="account-section">
+      <h2>Passwort ändern</h2>
+      <div id="password-result"></div>
+      <form class="form" id="password-form">
+        ${passwordField('currentPassword', forced ? 'Einmal-Passwort von der Hausverwaltung' : 'Bisheriges Passwort', '', 'current-password')}
+        ${passwordField('newPassword', 'Neues Passwort', `Mindestens ${PASSWORD_MIN} Zeichen.`)}
+        <div><button class="btn" type="submit">Passwort ändern</button></div>
+      </form>
+    </section>`;
+
+  if (forced) {
+    render(`
+      ${pageHead('konto', 'Eigenes Passwort setzen')}
+      <p class="notice">Die Hausverwaltung hat dein Passwort zurückgesetzt. Bitte wähle jetzt ein eigenes – danach geht es ganz normal weiter.</p>
+      ${passwordForm}`, 'konto');
+  } else {
+    render(`
+      ${pageHead('konto', 'Mein Konto')}
+      <p class="muted">Angemeldet als <strong>${escapeHtml(state.user.username)}</strong>.</p>
+      <section class="account-section">
+        <h2>Dein Name</h2>
+        <div id="name-result"></div>
+        <form class="form" id="name-form">
+          <div class="field">
+            <label for="displayName">So sehen dich die anderen am Schwarzen Brett</label>
+            <input id="displayName" name="displayName" minlength="2" maxlength="100" required value="${escapeHtml(state.user.displayName)}">
+          </div>
+          <div><button class="btn secondary" type="submit">Namen speichern</button></div>
+        </form>
+      </section>
+      ${passwordForm}
+      <section class="account-section danger-zone">
+        <h2>Konto löschen</h2>
+        <p class="muted">Dein Konto wird sofort gelöscht, zusammen mit deinen Aushängen und Fotos. Das lässt sich nicht rückgängig machen.</p>
+        <div id="delete-result"></div>
+        <form class="form" id="delete-form">
+          ${passwordField('deletePassword', 'Zur Bestätigung dein Passwort', '', 'current-password')}
+          <div><button class="btn danger" type="submit">Konto endgültig löschen</button></div>
+        </form>
+      </section>`, 'konto');
+  }
+
+  enablePasswordToggles(main);
+
+  document.getElementById('password-form').addEventListener('submit', async (submitEvent) => {
+    submitEvent.preventDefault();
+    const form = submitEvent.target;
+    const result = document.getElementById('password-result');
+    try {
+      await api('/api/account/password', {
+        method: 'PUT',
+        body: { currentPassword: form.elements.currentPassword.value, newPassword: form.elements.newPassword.value },
+      });
+      form.reset();
+      if (forced) {
+        await loadUser();
+        location.hash = '#/news';
+      } else {
+        result.innerHTML = '<p class="notice">Dein Passwort ist geändert.</p>';
+      }
+    } catch (error) {
+      result.innerHTML = errorNotice(error, `Das neue Passwort braucht mindestens ${PASSWORD_MIN} Zeichen.`);
+    }
+  });
+
+  document.getElementById('name-form')?.addEventListener('submit', async (submitEvent) => {
+    submitEvent.preventDefault();
+    const result = document.getElementById('name-result');
+    try {
+      await api('/api/account/display-name', { method: 'PUT', body: { displayName: submitEvent.target.elements.displayName.value } });
+      await loadUser();
+      result.innerHTML = '<p class="notice">Dein Name ist gespeichert.</p>';
+    } catch (error) {
+      result.innerHTML = errorNotice(error, 'Der Name braucht mindestens 2 Zeichen.');
+    }
+  });
+
+  document.getElementById('delete-form')?.addEventListener('submit', async (submitEvent) => {
+    submitEvent.preventDefault();
+    if (!confirm('Dein Konto, deine Aushänge und Fotos werden endgültig gelöscht. Wirklich fortfahren?')) return;
+    try {
+      await api('/api/account/delete', { method: 'POST', body: { password: submitEvent.target.elements.deletePassword.value } });
+      await loadUser();
+      location.hash = '#/news';
+    } catch (error) {
+      document.getElementById('delete-result').innerHTML = errorNotice(error, 'Bitte gib dein Passwort ein.');
+    }
+  });
+}
+
+// ---------- Verwaltung (nur Admins) ----------
+
+function adminHead(active) {
+  const link = (hash, label, key) => `<a href="${hash}" ${key === active ? 'aria-current="page"' : ''}>${label}</a>`;
+  return `
+    ${pageHead('verwaltung', 'Verwaltung')}
+    <nav class="subnav" aria-label="Verwaltung">
+      ${link('#/verwaltung', 'Mitglieder', 'members')}
+      ${link('#/verwaltung/codes', 'Freischaltcodes', 'codes')}
+    </nav>`;
+}
+
+function requireAdmin() {
+  if (isAdmin()) return true;
+  render(`${pageHead('verwaltung', 'Verwaltung')}<p class="notice">Diesen Bereich sehen nur Admins.</p>`, 'verwaltung');
+  return false;
+}
+
+async function viewAdminMembers(notice = '') {
+  if (!requireAdmin()) return;
+  const members = await api('/api/admin/members');
+
+  const rows = members.map((member) => {
+    const tags = [
+      member.role === 'ADMIN' ? '<span class="tag">Admin</span>' : '',
+      member.enabled ? '' : '<span class="tag tag-warn">Gesperrt</span>',
+      member.mustChangePassword ? '<span class="tag">Muss Passwort ändern</span>' : '',
+    ].join('');
+    const actions = member.self
+      ? '<span class="muted">Das bist du</span>'
+      : `
+        <button type="button" class="btn small secondary" data-action="reset" data-id="${member.id}">Passwort zurücksetzen</button>
+        <button type="button" class="btn small secondary" data-action="${member.enabled ? 'block' : 'unblock'}" data-id="${member.id}">
+          ${member.enabled ? 'Sperren' : 'Entsperren'}</button>
+        <button type="button" class="btn small secondary" data-action="${member.role === 'ADMIN' ? 'demote' : 'promote'}" data-id="${member.id}">
+          ${member.role === 'ADMIN' ? 'Admin-Rechte entziehen' : 'Zum Admin machen'}</button>`;
+    return `
+      <li class="member">
+        <div class="member-head"><strong>${escapeHtml(member.displayName)}</strong>${tags}</div>
+        <p class="muted">${escapeHtml(member.username)}${member.apartment ? ` · ${escapeHtml(member.apartment)}` : ''}
+          · dabei seit ${fullDate.format(new Date(member.createdAt))}</p>
+        <div class="member-actions">${actions}</div>
+      </li>`;
+  }).join('');
+
+  render(`
+    ${adminHead('members')}
+    <div id="admin-notice">${notice}</div>
+    <ul class="member-list" id="member-list">${rows}</ul>`, 'verwaltung');
+
+  document.getElementById('member-list').addEventListener('click', async (clickEvent) => {
+    const button = clickEvent.target.closest('button[data-action]');
+    if (!button) return;
+    const member = members.find((m) => String(m.id) === button.dataset.id);
+    const name = `„${member.displayName}“`;
+    const box = document.getElementById('admin-notice');
+
+    const questions = {
+      reset: `Passwort von ${name} zurücksetzen? Die Person wird überall abgemeldet und bekommt ein Einmal-Passwort.`,
+      block: `${name} sperren? Die Person wird sofort abgemeldet und kann sich nicht mehr anmelden. Ihre Aushänge bleiben.`,
+      unblock: `${name} wieder entsperren?`,
+      promote: `${name} zum Admin machen? Admins können Inhalte, Codes und Mitglieder verwalten.`,
+      demote: `${name} die Admin-Rechte entziehen?`,
+    };
+    if (!confirm(questions[button.dataset.action])) return;
+
+    try {
+      if (button.dataset.action === 'reset') {
+        const { temporaryPassword } = await api(`/api/admin/members/${member.id}/password-reset`, { method: 'POST' });
+        // Das Einmal-Passwort gibt es nur in dieser Antwort; gespeichert ist nur der Hash.
+        await viewAdminMembers(`
+          <div class="notice">
+            <p>Einmal-Passwort für ${escapeHtml(name)}: <code class="secret">${escapeHtml(temporaryPassword)}</code></p>
+            <p class="muted">Gib es der Person persönlich weiter. Es wird nur jetzt angezeigt; beim Anmelden muss sie sofort ein eigenes Passwort wählen.</p>
+          </div>`);
+        return;
+      }
+      const body = {
+        block: { enabled: false }, unblock: { enabled: true },
+        promote: { role: 'ADMIN' }, demote: { role: 'USER' },
+      }[button.dataset.action];
+      await api(`/api/admin/members/${member.id}`, { method: 'PUT', body });
+      await viewAdminMembers();
+    } catch (error) {
+      box.innerHTML = errorNotice(error, 'Das hat nicht geklappt.');
+    }
+  });
+}
+
+function codeStatus(code) {
+  if (code.revoked) return '<span class="tag tag-warn">Gesperrt</span>';
+  if (!code.usable) return '<span class="tag">Verbraucht</span>';
+  return '<span class="tag tag-ok">Frei</span>';
+}
+
+async function viewAdminCodes(notice = '') {
+  if (!requireAdmin()) return;
+  const codes = await api('/api/admin/codes');
+
+  const rows = codes.map((code) => `
+    <li class="code-row">
+      <label class="code-pick"><input type="checkbox" value="${code.id}" ${code.usable ? '' : 'disabled'}
+        aria-label="${escapeHtml(code.label)} zum Drucken auswählen"></label>
+      <div>
+        <div class="member-head"><strong>${escapeHtml(code.label)}</strong>${codeStatus(code)}</div>
+        <p class="muted"><code class="secret">${escapeHtml(code.code)}</code> · ${code.usedCount} von ${code.maxUses} benutzt</p>
+      </div>
+      <button type="button" class="btn small secondary" data-id="${code.id}" data-revoked="${!code.revoked}">
+        ${code.revoked ? 'Entsperren' : 'Sperren'}</button>
+    </li>`).join('');
+
+  render(`
+    ${adminHead('codes')}
+    <div id="admin-notice">${notice}</div>
+    <section class="account-section">
+      <h2>Neue Codes erzeugen</h2>
+      <form class="form" id="code-form">
+        <div class="field">
+          <label for="labels">Für welche Wohnungen?</label>
+          <span class="hint">Eine Wohnung pro Zeile, zum Beispiel „Whg. 3“ oder „EG links“. Jeder Code gilt für zwei Personen und läuft nicht ab.</span>
+          <textarea id="labels" name="labels" class="short-text" required></textarea>
+        </div>
+        <div><button class="btn" type="submit">Codes erzeugen</button></div>
+      </form>
+    </section>
+    <section class="account-section">
+      <h2>Alle Codes</h2>
+      ${codes.length ? `
+        <p class="muted">Kreuze freie Codes an, um Zettel für den Briefkasten zu drucken.</p>
+        <ul class="member-list" id="code-list">${rows}</ul>
+        <div class="admin-actions"><button class="btn" type="button" id="print">Zettel für Ausgewählte drucken</button></div>`
+        : '<p class="muted">Noch keine Codes erzeugt.</p>'}
+    </section>`, 'verwaltung');
+
+  document.getElementById('code-form').addEventListener('submit', async (submitEvent) => {
+    submitEvent.preventDefault();
+    const labels = submitEvent.target.elements.labels.value.split('\n').map((l) => l.trim()).filter(Boolean);
+    try {
+      const created = await api('/api/admin/codes', { method: 'POST', body: { labels } });
+      await viewAdminCodes(`
+        <p class="notice">${created.length} ${created.length === 1 ? 'Code' : 'Codes'} erzeugt.
+          <a href="#/verwaltung/drucken/${created.map((c) => c.id).join(',')}">Zettel dafür drucken</a></p>`);
+    } catch (error) {
+      document.getElementById('admin-notice').innerHTML = errorNotice(error, 'Bitte gib mindestens eine Wohnung an (höchstens 100 Zeichen pro Zeile).');
+    }
+  });
+
+  document.getElementById('code-list')?.addEventListener('click', async (clickEvent) => {
+    const button = clickEvent.target.closest('button[data-id]');
+    if (!button) return;
+    const revoked = button.dataset.revoked === 'true';
+    if (revoked && !confirm('Code sperren? Damit kann sich niemand mehr registrieren. Bestehende Konten bleiben.')) return;
+    await api(`/api/admin/codes/${button.dataset.id}`, { method: 'PUT', body: { revoked } });
+    await viewAdminCodes();
+  });
+
+  document.getElementById('print')?.addEventListener('click', () => {
+    const ids = [...document.querySelectorAll('#code-list input:checked')].map((box) => box.value);
+    if (!ids.length) {
+      document.getElementById('admin-notice').innerHTML = '<p class="notice error">Kreuze zuerst mindestens einen freien Code an.</p>';
+      return;
+    }
+    location.hash = `#/verwaltung/drucken/${ids.join(',')}`;
+  });
+}
+
+/** Zettel für den Briefkasten: ein Abschnitt pro Wohnung, mit Schnittkante, beim Drucken ohne Navigation. */
+async function viewCodeSlips(idList = '') {
+  if (!requireAdmin()) return;
+  const wanted = new Set(idList.split(','));
+  const codes = (await api('/api/admin/codes')).filter((code) => wanted.has(String(code.id)));
+  const site = location.host;
+
+  const slips = codes.map((code) => `
+    <article class="slip">
+      <p class="slip-brand">MicroHub – die Infoseite für unser Haus</p>
+      <p class="slip-for">Für: <strong>${escapeHtml(code.label)}</strong></p>
+      <p>Hier findest du News, Termine, die Müllabfuhr, wichtige Kontakte und das Schwarze Brett.
+         So meldest du dich an:</p>
+      <ol>
+        <li>Öffne <strong>${escapeHtml(site)}</strong> im Browser, gern auf dem Handy.</li>
+        <li>Tippe auf „Anmelden“ und dann auf „Mit Freischaltcode registrieren“.</li>
+        <li>Gib diesen Code ein: <code class="slip-code">${escapeHtml(code.code)}</code></li>
+      </ol>
+      <p class="slip-note">Der Code gilt für zwei Personen eures Haushalts. Bitte nicht weitergeben.</p>
+    </article>`).join('');
+
+  render(`
+    <div class="no-print">
+      <a class="back" href="#/verwaltung/codes">Zurück zu den Codes</a>
+      ${pageHead('verwaltung', 'Zettel drucken')}
+      ${codes.length
+        ? '<p class="muted">Jeder Zettel ist durch eine gestrichelte Linie getrennt. Beim Drucken erscheinen nur die Zettel.</p><div class="admin-actions"><button class="btn" type="button" id="do-print">Jetzt drucken</button></div>'
+        : '<p class="notice">Keine passenden Codes gefunden.</p>'}
+    </div>
+    <div class="slips">${slips}</div>`, 'verwaltung');
+
+  document.getElementById('do-print')?.addEventListener('click', () => window.print());
+}
+
 // ---------- Fehler ----------
 
 function viewError(error, section) {
@@ -1244,8 +1642,19 @@ async function route() {
   const [section = 'news', first, second] = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   setActiveTab(section === 'login' ? null : section);
 
+  // Mit einem Einmal-Passwort vom Admin geht es erst weiter, wenn ein eigenes gesetzt ist.
+  if (state.user?.mustChangePassword && section !== 'konto') {
+    location.hash = '#/konto';
+    return;
+  }
+
   try {
     if (section === 'login') viewLogin();
+    else if (section === 'registrieren') viewRegister();
+    else if (section === 'konto') viewAccount();
+    else if (section === 'verwaltung' && !first) await viewAdminMembers();
+    else if (section === 'verwaltung' && first === 'codes') await viewAdminCodes();
+    else if (section === 'verwaltung' && first === 'drucken') await viewCodeSlips(second);
     else if (section === 'news' && !first) await viewNewsList();
     else if (section === 'news' && first === 'neu') await viewNewsEditor();
     else if (section === 'news' && second === 'bearbeiten') await viewNewsEditor(first);
