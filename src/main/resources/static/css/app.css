@@ -463,6 +463,25 @@ main:focus, main:focus-visible { outline: none; }
 .field label { font-weight: 600; }
 .field .hint { font-size: .9rem; color: var(--muted); }
 
+/*
+ * Pflichtfelder: ein Sternchen hinter der Beschriftung jedes Feldes mit required-Attribut, und
+ * über dem Formular ein kurzer Hinweis, was das Sternchen bedeutet. Weil es am Attribut hängt,
+ * folgt es auch Feldern, die nur manchmal Pflicht sind (Preis bei „Biete“, Termin-Beginn).
+ * Das Sternchen ist rein optisch; Screenreader melden „erforderlich“ schon über required.
+ * Beim Anmelden weggelassen – dort ist ohnehin klar, dass beide Felder nötig sind.
+ */
+.form:not(#login-form) .field:has(:required) > label:first-of-type::after,
+.form:not(#login-form) .field:has(:required) > legend::after {
+  content: " *";
+  color: var(--danger);
+  font-weight: 700;
+}
+.form:not(#login-form):has(:required)::before {
+  content: "Felder mit * müssen ausgefüllt werden.";
+  color: var(--muted);
+  font-size: .9rem;
+}
+
 input, textarea {
   width: 100%;
   padding: .7rem .8rem;
