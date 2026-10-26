@@ -31,4 +31,8 @@ public interface BoardPostRepository extends JpaRepository<BoardPost, Long> {
                or (p.revived = false and p.expiresAt <= :revivableSince)
             """)
     List<BoardPost> findDueForDeletion(Instant now, Instant revivableSince);
+
+    /** Alle Aushänge eines Mitglieds, z. B. wenn es sein Konto löscht. */
+    @EntityGraph(attributePaths = "photos")
+    List<BoardPost> findByAuthorId(Long authorId);
 }

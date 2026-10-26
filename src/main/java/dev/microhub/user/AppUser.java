@@ -32,6 +32,15 @@ public class AppUser {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    /** Über welchen Freischaltcode (also welche Wohnung) jemand kam; leer beim ersten Admin. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "invite_code_id")
+    private InviteCode inviteCode;
+
+    /** Nach dem Zurücksetzen durch den Admin muss das Einmal-Passwort sofort ersetzt werden. */
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword;
+
     protected AppUser() {
         // für JPA
     }
@@ -52,9 +61,13 @@ public class AppUser {
     public Role getRole() { return role; }
     public boolean isEnabled() { return enabled; }
     public Instant getCreatedAt() { return createdAt; }
+    public InviteCode getInviteCode() { return inviteCode; }
+    public boolean isMustChangePassword() { return mustChangePassword; }
 
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public void setRole(Role role) { this.role = role; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public void setInviteCode(InviteCode inviteCode) { this.inviteCode = inviteCode; }
+    public void setMustChangePassword(boolean mustChangePassword) { this.mustChangePassword = mustChangePassword; }
 }
