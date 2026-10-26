@@ -32,9 +32,10 @@ public class SecurityConfig {
 
                 // Gastzugriff: nur lesen
                 .requestMatchers(HttpMethod.GET, "/api/news/**", "/api/events/**", "/api/waste/**").permitAll()
+                // Kontakte: Gäste sehen nur die öffentlichen, das filtert der ContactService
+                .requestMatchers(HttpMethod.GET, "/api/contacts/**").permitAll()
 
                 // Nur für eingeloggte Benutzer
-                .requestMatchers(HttpMethod.GET, "/api/contacts/**").authenticated()
                 .requestMatchers("/api/board/**", "/api/push/**").authenticated()
 
                 // Inhalte pflegen: nur Admins
