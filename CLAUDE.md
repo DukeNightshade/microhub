@@ -180,6 +180,13 @@ Danach: Benutzerverwaltung mit Freischaltcodes.
    Hand pflegen. Das Feld `area` bleibt vorerst leer (eine Tour).
    → Einzelheiten unter „Festlegungen Müllabfuhr-Modul“.
 
+4. **Schwarzes Brett** (26.10.2026): Aushänge bearbeiten und löschen dürfen **der Autor und
+   der Admin**. Jeder Aushang hat eine feste Art **Suche, Biete oder Tausche** (Spalte `kind`,
+   Migration V3). Die Laufzeit wählt man beim Schreiben: **7, 14, 30, 60 oder 90 Tage**,
+   Standard 30; daraus wird `expires_at` berechnet, abgelaufene Aushänge werden nicht mehr
+   angezeigt. Unter dem Aushang steht der **Anzeigename** (`display_name`), nicht der
+   Benutzername.
+
 ## Festlegungen Termine-Modul
 
 - Liste zeigt standardmäßig **kommende** Termine aufsteigend (der nächste zuerst);
