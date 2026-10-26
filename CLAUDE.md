@@ -218,13 +218,15 @@ Lokale DB-Zugangsdaten (nur Entwicklung): DB/User `microhub`, Passwort `devpassw
 
 ## Handover – Stand 26.10.2026
 
-**Zuletzt gemacht:** Kontakte, Schwarzes Brett (mit Fotos und Ablaufregeln) und die
-Benutzerverwaltung mit Freischaltcodes. Alles mit Gast, Mitgliedern und Admin im Browser
-getestet. Damit sind alle fünf Bereiche fertig.
+**Zuletzt gemacht:** Alle Bereiche fertig, danach Feinschliff nach Wünschen des Entwicklers:
+gemeinsamer Kalender (Termine + Müll), News mit Terminen und Bildern, Startseite, neues
+Design mit animiertem Hub-Logo, Brett mit Pflicht-Kontakt und Preis bei „Biete“,
+Pflichtfelder mit Sternchen, Aufräumregeln für gesperrte Konten und Codes.
+Alles gepusht (letzter Commit dieser Sitzung: `49c6d64`).
 
 **Zustand der lokalen Umgebung:**
 - Datenbank enthält die **185 echten Abfuhrtermine** aus den ICS-Dateien des Landkreises
-  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen. Flyway steht auf `V7`.
+  (02.01.2026 bis 30.12.2027) – echte Daten, nicht wegwerfen. Flyway steht auf `V10`.
 - Benutzer `admin`; keine News, Termine, Codes, Aushänge. Legt der Entwickler eigene
   Testdaten an, diese nicht ungefragt löschen – eigene Testdaten erkennbar benennen (z. B. „TESTCAL“).
 - Der Entwickler startet die App oft selbst in IntelliJ (Port 8080, baut bei Änderungen
@@ -233,9 +235,12 @@ getestet. Damit sind alle fünf Bereiche fertig.
 - Fotos landen lokal in `data/uploads/` im Projektordner (per `.gitignore` ausgeschlossen).
 - Der Container `microhub-postgres-1` läuft oder lässt sich mit dem App-Start neu hochziehen.
 
-**Nächster Schritt: mit dem Entwickler festlegen.** Offen sind PWA, Web Push, Tests + CI und
-das Deployment. Vorgeschlagen (26.10.2026): erst Tests (Testcontainers) + CI, dann Deployment,
-damit echte Nutzer starten können; PWA und Push danach.
+**Nächster Schritt: Der Entwickler ist noch in der Feinschliff-Phase** („bis es zu 100 %
+gefällt“) und bringt die nächsten Punkte selbst ein – also fragen, was angepasst werden soll.
+Schon angesprochen, aber nicht beauftragt: Wohnung freiwillig am Aushang zeigen, Knopf
+„Ich habe Interesse“, private Nachrichten, Kalender als ICS-Abo, Favicon.
+Danach offen: Tests (Testcontainers) + CI, Deployment (vorher Impressum/Datenschutz klären),
+PWA und Web Push.
 
 ## Getroffene Entscheidungen
 
